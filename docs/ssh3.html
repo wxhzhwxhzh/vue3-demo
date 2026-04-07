@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH 命令生成器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif; }
+        body { background: #f0f2f5; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .title { font-size: 22px; margin-bottom: 10px; color: #1a1a1a; font-weight: 600; }
+        .desc { color: #666; margin-bottom: 20px; font-size: 14px; }
+        .card { background: white; padding: 18px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .label { font-size: 13px; color: #444; margin-bottom: 8px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #d1d5da; border-radius: 4px; font-size: 14px; transition: border-color 0.2s; }
+        input:focus { outline: none; border-color: #0366d6; }
+        .row { display: flex; gap: 12px; margin-bottom: 10px; }
+        .col { flex: 1; }
+        .btn { width: 100%; padding: 12px; background: #2ea44f; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600; margin-top: 10px; }
+        .btn:hover { background: #2c974b; }
+        .output { background: #24292e; color: #e6edf3; padding: 20px; border-radius: 8px; margin-top: 20px; font-family: 'SFMono-Regular', Consolas, monospace; white-space: pre-wrap; font-size: 14px; line-height: 1.6; border-left: 4px solid #2ea44f; position: relative; }
+        .tag { display: inline-block; padding: 5px 12px; background: #f1f8ff; color: #0366d6; border-radius: 20px; font-size: 12px; margin-right: 8px; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; }
+        .tag.active { background: #0366d6; color: white; }
+        .copy-hint { position: absolute; top: 10px; right: 15px; font-size: 10px; color: #8b949e; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="title">🚀 SSH 命令生成器</div>
+    <div class="desc">快速构建 SSH 连接命令，支持端口、私钥、跳板机及各种高级选项</div>
+
+    <div class="card">
+        <div class="row">
+            <div class="col" style="flex: 2;">
+                <div class="label">远程主机 (IP 或 域名)</div>
+                <input v-model="host" placeholder="192.168.1.100">
+            </div>
+            <div class="col">
+                <div class="label">用户名</div>
+                <input v-model="user" placeholder="root">
+            </div>
+            <div class="col">
+                <div class="label">端口</div>
+                <input v-model="port" placeholder="22">
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">私钥路径 (-i)</div>
+        <input v-model="identityFile" placeholder="~/.ssh/id_rsa (可选)">
+        
+        <div class="label" style="margin-top: 15px;">跳板机/代理主机 (-J)</div>
+        <input v-model="jumpHost" placeholder="user@jump-server.com (可选)">
+    </div>
+
+    <div class="card">
+        <div class="label">常用配置开关</div>
+        <div>
+            <span class="tag" :class="{active: x11}" @click="x11 = !x11">-X 转发图形界面</span>
+            <span class="tag" :class="{active: compression}" @click="compression = !compression">-C 启用压缩</span>
+            <span class="tag" :class="{active: ipv4}" @click="ipv4 = !ipv4">-4 强制使用 IPv4</span>
+            <span class="tag" :class="{active: quiet}" @click="quiet = !quiet">-q 静默模式</span>
+            <span class="tag" :class="{active: noStrict}" @click="noStrict = !noStrict">忽略主机密钥检查 (慎用)</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">登录后执行的命令 (可选)</div>
+        <input v-model="remoteCmd" placeholder="例如: ls -la /var/www">
+    </div>
+
+    <button class="btn" @click="copyCmd">📋 复制 SSH 命令</button>
+
+    <div class="output">
+        <span class="copy-hint">Terminal Output</span>
+        {{ finalCmd }}
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed } = Vue
+
+createApp({
+    setup() {
+        const host = ref('')
+        const user = ref('root')
+        const port = ref('')
+        const identityFile = ref('')
+        const jumpHost = ref('')
+        const x11 = ref(false)
+        const compression = ref(false)
+        const ipv4 = ref(false)
+        const quiet = ref(false)
+        const noStrict = ref(false)
+        const remoteCmd = ref('')
+
+        const finalCmd = computed(() => {
+            let cmd = ['ssh']
+
+            // 处理端口
+            if (port.value && port.value !== '22') {
+                cmd.push('-p', port.value)
+            }
+
+            // 处理私钥
+            if (identityFile.value.trim()) {
+                cmd.push('-i', identityFile.value.trim())
+            }
+
+            // 处理跳板机
+            if (jumpHost.value.trim()) {
+                cmd.push('-J', jumpHost.value.trim())
+            }
+
+            // 处理开关选项
+            if (x11.value) cmd.push('-X')
+            if (compression.value) cmd.push('-C')
+            if (ipv4.value) cmd.push('-4')
+            if (quiet.value) cmd.push('-q')
+            
+            // 处理安全选项
+            if (noStrict.value) {
+                cmd.push('-o', 'StrictHostKeyChecking=no')
+                cmd.push('-o', 'UserKnownHostsFile=/dev/null')
+            }
+
+            // 组合 用户名@主机
+            let target = host.value || 'hostname'
+            if (user.value) {
+                target = `${user.value}@${target}`
+            }
+            cmd.push(target)
+
+            // 处理远程执行命令
+            if (remoteCmd.value.trim()) {
+                cmd.push(`"${remoteCmd.value.trim()}"`)
+            }
+
+            return cmd.join(' ')
+        })
+
+        const copyCmd = async () => {
+            if (!host.value) {
+                alert('请先输入目标主机地址')
+                return
+            }
+            try {
+                await navigator.clipboard.writeText(finalCmd.value)
+                alert('命令已成功复制到剪贴板！')
+            } catch (err) {
+                alert('无法自动复制，请手动选择文字')
+            }
+        }
+
+        return {
+            host, user, port, identityFile, jumpHost,
+            x11, compression, ipv4, quiet, noStrict,
+            remoteCmd, finalCmd, copyCmd
+        }
+    }
+}).mount('#app')
+</script>
+
+</body>
+</html>

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker 命令生成器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --border: #dee2e6;
+            --text: #212529;
+            --muted: #6c757d;
+            --accent: #0d6efd;
+            --shadow: rgba(0,0,0,0.05);
+        }
+
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        #app {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* 头部 */
+        .header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .logo-title span {
+            color: var(--accent);
+        }
+
+        .header-desc {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-top: 0.5rem;
+        }
+
+        /* 面板 */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 3px var(--shadow);
+        }
+
+        .section-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-label .dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        /* 命令标签 */
+        .cmd-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .cmd-tab {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: var(--surface);
+            transition: all 0.1s;
+        }
+
+        .cmd-tab:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .cmd-tab.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        /* 表单元素 */
+        .field-label {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin: 0.8rem 0 0.3rem;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1);
+        }
+
+        /* 芯片组 */
+        .chip-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 0.8rem 0;
+        }
+
+        .chip {
+            padding: 0.3rem 0.7rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .chip:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .chip.active {
+            background: rgba(13, 110, 253, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: opacity 0.1s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        /* 网格布局 */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 0.8rem 0;
+        }
+
+        @media (max-width: 580px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 包管理 */
+        .pkg-row {
+            display: flex;
+            gap: 0.5rem;
+            margin: 0.8rem 0;
+        }
+
+        .pkg-row input {
+            flex: 1;
+        }
+
+        .pkg-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 0.8rem 0;
+        }
+
+        .pkg-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            background: rgba(13, 110, 253, 0.1);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.8rem;
+            color: var(--accent);
+        }
+
+        .pkg-tag .rm {
+            color: var(--muted);
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .pkg-tag .rm:hover {
+            color: #dc3545;
+        }
+
+        /* 输出面板 */
+        .output-panel {
+            background: var(--surface);
+            border: 2px solid var(--text);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .output-label {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .command-text {
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            line-height: 1.6;
+            word-break: break-all;
+            padding: 0.8rem;
+            background: var(--bg);
+            border-radius: 4px;
+        }
+
+        .t-cmd { color: var(--accent); font-weight: 600; }
+        .t-sub { color: #198754; }
+        .t-flag { color: #ffc107; }
+        .t-val { color: var(--muted); }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- 头部 -->
+    <div class="header">
+        <div class="logo-title"><span>Docker</span> 命令生成器</div>
+        <div class="header-desc">快速生成常用 Docker 命令，简化容器操作</div>
+    </div>
+
+    <!-- 命令类型 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>命令类型</div>
+        <div class="cmd-tabs">
+            <button v-for="c in commands" :key="c.value"
+                    class="cmd-tab" :class="{ active: form.cmd === c.value }"
+                    @click="form.cmd = c.value">
+                {{ c.label }}
+            </button>
+        </div>
+    </div>
+
+    <!-- 容器运行 -->
+    <div class="panel" v-if="form.cmd === 'run'">
+        <div class="section-label"><span class="dot"></span>容器运行参数</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">镜像名称</div>
+                <input v-model="form.imageName" placeholder="nginx:latest, ubuntu:22.04">
+            </div>
+            <div>
+                <div class="field-label">容器名称</div>
+                <input v-model="form.containerName" placeholder="my-nginx">
+            </div>
+        </div>
+        
+        <div class="field-label">端口映射 (主机:容器)</div>
+        <input v-model="form.portMap" placeholder="8080:80, 3306:3306">
+        
+        <div class="field-label">数据卷映射 (主机:容器)</div>
+        <input v-model="form.volumeMap" placeholder="/host/path:/container/path">
+        
+        <div class="field-label">环境变量</div>
+        <input v-model="form.envVars" placeholder="MYSQL_ROOT_PASSWORD=123456, TZ=Asia/Shanghai">
+        
+        <div class="chip-group">
+            <span class="chip" :class="{ active: form.detached }" @click="form.detached = !form.detached">-d (后台运行)</span>
+            <span class="chip" :class="{ active: form.interactive }" @click="form.interactive = !form.interactive">-it (交互模式)</span>
+            <span class="chip" :class="{ active: form.autoRemove }" @click="form.autoRemove = !form.autoRemove">--rm (自动删除)</span>
+            <span class="chip" :class="{ active: form.privileged }" @click="form.privileged = !form.privileged">--privileged (特权模式)</span>
+        </div>
+    </div>
+
+    <!-- 镜像构建 -->
+    <div class="panel" v-if="form.cmd === 'build'">
+        <div class="section-label"><span class="dot"></span>镜像构建参数</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">镜像标签 (name:tag)</div>
+                <input v-model="form.imageTag" placeholder="my-app:v1.0">
+            </div>
+            <div>
+                <div class="field-label">Dockerfile 路径</div>
+                <input v-model="form.dockerfilePath" placeholder="./Dockerfile" value="./Dockerfile">
+            </div>
+        </div>
+        
+        <div class="field-label">构建上下文</div>
+        <input v-model="form.buildContext" placeholder="." value=".">
+        
+        <div class="field-label">构建参数</div>
+        <input v-model="form.buildArgs" placeholder="VERSION=1.0, HTTP_PROXY=http://proxy:8080">
+        
+        <div class="chip-group">
+            <span class="chip" :class="{ active: form.noCache }" @click="form.noCache = !form.noCache">--no-cache (不使用缓存)</span>
+            <span class="chip" :class="{ active: form.platform }" @click="form.platform = !form.platform">--platform (指定平台)</span>
+        </div>
+        
+        <div v-if="form.platform">
+            <div class="field-label">平台类型</div>
+            <input v-model="form.platformType" placeholder="linux/amd64, linux/arm64">
+        </div>
+    </div>
+
+    <!-- 容器管理 -->
+    <div class="panel" v-if="['start', 'stop', 'restart', 'rm', 'exec'].includes(form.cmd)">
+        <div class="section-label"><span class="dot"></span>容器操作</div>
+        <div class="field-label">容器名称/ID</div>
+        <input v-model="form.containerId" placeholder="my-container 或容器ID前几位">
+        
+        <div v-if="form.cmd === 'exec'">
+            <div class="field-label">执行命令</div>
+            <input v-model="form.execCmd" placeholder="bash, sh, mysql -u root -p">
+            
+            <div class="chip-group">
+                <span class="chip" :class="{ active: form.execIt }" @click="form.execIt = !form.execIt">-it (交互模式)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 镜像管理 -->
+    <div class="panel" v-if="['pull', 'push', 'rmi'].includes(form.cmd)">
+        <div class="section-label"><span class="dot"></span>镜像操作</div>
+        <div class="field-label">镜像名称</div>
+        <input v-model="form.imageName" placeholder="nginx:latest, my-app:v1.0">
+        
+        <div v-if="form.cmd === 'rmi'">
+            <div class="chip-group">
+                <span class="chip" :class="{ active: form.forceRm }" @click="form.forceRm = !form.forceRm">-f (强制删除)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 系统信息 -->
+    <div class="panel" v-if="['ps', 'images', 'stats', 'logs'].includes(form.cmd)">
+        <div class="section-label"><span class="dot"></span>系统信息</div>
+        
+        <div v-if="form.cmd === 'ps'">
+            <div class="chip-group">
+                <span class="chip" :class="{ active: form.psAll }" @click="form.psAll = !form.psAll">-a (显示所有容器)</span>
+                <span class="chip" :class="{ active: form.psQuiet }" @click="form.psQuiet = !form.psQuiet">-q (仅显示ID)</span>
+            </div>
+        </div>
+        
+        <div v-if="form.cmd === 'images'">
+            <div class="chip-group">
+                <span class="chip" :class="{ active: form.imagesAll }" @click="form.imagesAll = !form.imagesAll">-a (显示所有镜像)</span>
+                <span class="chip" :class="{ active: form.imagesQuiet }" @click="form.imagesQuiet = !form.imagesQuiet">-q (仅显示ID)</span>
+            </div>
+        </div>
+        
+        <div v-if="form.cmd === 'logs'">
+            <div class="field-label">容器名称/ID</div>
+            <input v-model="form.containerId" placeholder="my-container">
+            
+            <div class="chip-group">
+                <span class="chip" :class="{ active: form.logsFollow }" @click="form.logsFollow = !form.logsFollow">-f (实时跟踪)</span>
+                <span class="chip" :class="{ active: form.logsTail }" @click="form.logsTail = !form.logsTail">--tail (显示最后N行)</span>
+            </div>
+            
+            <div v-if="form.logsTail">
+                <div class="field-label">显示行数</div>
+                <input type="number" v-model="form.logsTailNum" placeholder="100" value="100">
+            </div>
+        </div>
+    </div>
+
+    <!-- 输出面板 -->
+    <div class="output-panel">
+        <div class="output-header">
+            <div class="output-label">生成的命令</div>
+            <button class="btn btn-primary" :class="{ copied: copied }" @click="copyCmd">
+                {{ copied ? '✓ 已复制' : '复制命令' }}
+            </button>
+        </div>
+        <div class="command-text" v-html="highlighted"></div>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed } = Vue;
+
+createApp({
+    setup() {
+        // 表单数据
+        const form = ref({
+            cmd: 'run',
+            
+            // run 命令参数
+            imageName: '',
+            containerName: '',
+            portMap: '',
+            volumeMap: '',
+            envVars: '',
+            detached: true,
+            interactive: false,
+            autoRemove: false,
+            privileged: false,
+            
+            // build 命令参数
+            imageTag: '',
+            dockerfilePath: './Dockerfile',
+            buildContext: '.',
+            buildArgs: '',
+            noCache: false,
+            platform: false,
+            platformType: '',
+            
+            // 容器操作参数
+            containerId: '',
+            execCmd: '',
+            execIt: true,
+            
+            // 镜像操作参数
+            forceRm: false,
+            
+            // 系统信息参数
+            psAll: false,
+            psQuiet: false,
+            imagesAll: false,
+            imagesQuiet: false,
+            logsFollow: false,
+            logsTail: false,
+            logsTailNum: 100
+        });
+
+        const copied = ref(false);
+
+        // 命令类型列表
+        const commands = [
+            { value: 'run', label: '运行容器 (run)' },
+            { value: 'build', label: '构建镜像 (build)' },
+            { value: 'start', label: '启动容器 (start)' },
+            { value: 'stop', label: '停止容器 (stop)' },
+            { value: 'restart', label: '重启容器 (restart)' },
+            { value: 'rm', label: '删除容器 (rm)' },
+            { value: 'exec', label: '执行命令 (exec)' },
+            { value: 'pull', label: '拉取镜像 (pull)' },
+            { value: 'push', label: '推送镜像 (push)' },
+            { value: 'rmi', label: '删除镜像 (rmi)' },
+            { value: 'ps', label: '列出容器 (ps)' },
+            { value: 'images', label: '列出镜像 (images)' },
+            { value: 'stats', label: '容器状态 (stats)' },
+            { value: 'logs', label: '容器日志 (logs)' }
+        ];
+
+        // 生成完整命令
+        const fullCommand = computed(() => {
+            const f = form.value;
+            let parts = ['docker'];
+
+            switch (f.cmd) {
+                case 'run':
+                    parts.push('run');
+                    // 添加运行参数
+                    if (f.detached) parts.push('-d');
+                    if (f.interactive) parts.push('-it');
+                    if (f.autoRemove) parts.push('--rm');
+                    if (f.privileged) parts.push('--privileged');
+                    // 容器名称
+                    if (f.containerName) parts.push('--name', f.containerName);
+                    // 端口映射
+                    if (f.portMap) {
+                        f.portMap.split(',').forEach(port => {
+                            port = port.trim();
+                            if (port) parts.push('-p', port);
+                        });
+                    }
+                    // 数据卷映射
+                    if (f.volumeMap) {
+                        f.volumeMap.split(',').forEach(vol => {
+                            vol = vol.trim();
+                            if (vol) parts.push('-v', vol);
+                        });
+                    }
+                    // 环境变量
+                    if (f.envVars) {
+                        f.envVars.split(',').forEach(env => {
+                            env = env.trim();
+                            if (env) parts.push('-e', env);
+                        });
+                    }
+                    // 镜像名称
+                    if (f.imageName) parts.push(f.imageName);
+                    break;
+
+                case 'build':
+                    parts.push('build');
+                    // 构建参数
+                    if (f.noCache) parts.push('--no-cache');
+                    if (f.platform && f.platformType) parts.push('--platform', f.platformType);
+                    if (f.dockerfilePath) parts.push('-f', f.dockerfilePath);
+                    if (f.imageTag) parts.push('-t', f.imageTag);
+                    // 构建参数
+                    if (f.buildArgs) {
+                        f.buildArgs.split(',').forEach(arg => {
+                            arg = arg.trim();
+                            if (arg) parts.push('--build-arg', arg);
+                        });
+                    }
+                    // 构建上下文
+                    parts.push(f.buildContext);
+                    break;
+
+                case 'start':
+                case 'stop':
+                case 'restart':
+                    parts.push(f.cmd);
+                    if (f.containerId) parts.push(f.containerId);
+                    break;
+
+                case 'rm':
+                    parts.push('rm');
+                    if (f.containerId) parts.push(f.containerId);
+                    break;
+
+                case 'exec':
+                    parts.push('exec');
+                    if (f.execIt) parts.push('-it');
+                    if (f.containerId) parts.push(f.containerId);
+                    if (f.execCmd) parts.push(f.execCmd);
+                    break;
+
+                case 'pull':
+                case 'push':
+                    parts.push(f.cmd);
+                    if (f.imageName) parts.push(f.imageName);
+                    break;
+
+                case 'rmi':
+                    parts.push('rmi');
+                    if (f.forceRm) parts.push('-f');
+                    if (f.imageName) parts.push(f.imageName);
+                    break;
+
+                case 'ps':
+                    parts.push('ps');
+                    if (f.psAll) parts.push('-a');
+                    if (f.psQuiet) parts.push('-q');
+                    break;
+
+                case 'images':
+                    parts.push('images');
+                    if (f.imagesAll) parts.push('-a');
+                    if (f.imagesQuiet) parts.push('-q');
+                    break;
+
+                case 'stats':
+                    parts.push('stats');
+                    break;
+
+                case 'logs':
+                    parts.push('logs');
+                    if (f.logsFollow) parts.push('-f');
+                    if (f.logsTail) parts.push('--tail', f.logsTailNum);
+                    if (f.containerId) parts.push(f.containerId);
+                    break;
+            }
+
+            return parts.filter(Boolean).join(' ');
+        });
+
+        // 语法高亮
+        const highlighted = computed(() => {
+            return fullCommand.value
+                .replace(/^(docker)/, '<span class="t-cmd">$1</span>')
+                .replace(/ (run|build|start|stop|restart|rm|exec|pull|push|rmi|ps|images|stats|logs)(?= |$)/g,
+                    ' <span class="t-sub">$1</span>')
+                .replace(/ (-[a-zA-Z]+|--[\w-]+)(?= |$)/g,
+                    ' <span class="t-flag">$1</span>')
+                .replace(/ ([\d.:\/]+|[\w-]+:[^\s]+)(?= |$)/g,
+                    ' <span class="t-val">$1</span>');
+        });
+
+        // 复制命令
+        const copyCmd = async () => {
+            try {
+                await navigator.clipboard.writeText(fullCommand.value);
+                copied.value = true;
+                setTimeout(() => copied.value = false, 2000);
+            } catch (e) {
+                alert('复制失败，请手动复制命令');
+            }
+        };
+
+        return {
+            form,
+            commands,
+            copied,
+            fullCommand,
+            highlighted,
+            copyCmd
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

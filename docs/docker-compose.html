@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Docker Compose 生成器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, sans-serif;
+        }
+
+        body {
+            background: #f5f5f5;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .title {
+            font-size: 22px;
+            margin-bottom: 10px;
+            color: #222;
+        }
+
+        .desc {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            border: 1px solid #ddd;
+        }
+
+        .label {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 5px;
+            margin-top: 10px;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            background: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .output {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .row > div {
+            flex: 1;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #e9f0ff;
+            color: #0d6efd;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 6px;
+            margin-bottom: 6px;
+            cursor: pointer;
+        }
+
+        .tag.active {
+            background: #0d6efd;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="title">Docker Compose 生成器</div>
+    <div class="desc">快速生成标准 docker-compose.yml 文件</div>
+
+    <div class="card">
+        <div class="label">Compose 版本 (默认 3.8)</div>
+        <input v-model="version" placeholder="3.8">
+
+        <div class="label">服务名称</div>
+        <input v-model="serviceName" placeholder="web, app, mysql">
+    </div>
+
+    <div class="card">
+        <div class="label">镜像名称</div>
+        <input v-model="image" placeholder="nginx:alpine, mysql:8.0">
+
+        <div class="label">容器名称</div>
+        <input v-model="containerName" placeholder="my-web-container">
+    </div>
+
+    <div class="card">
+        <div class="row">
+            <div>
+                <div class="label">端口映射 主机:容器</div>
+                <input v-model="ports" placeholder="8080:80">
+            </div>
+            <div>
+                <div class="label">目录挂载 主机:容器</div>
+                <input v-model="volumes" placeholder="./html:/usr/share/nginx/html">
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">环境变量  key=value</div>
+        <input v-model="envVars" placeholder="MYSQL_ROOT_PASSWORD=123456">
+
+        <div class="label">重启策略</div>
+        <div>
+            <span class="tag" :class="{active: restart === 'no'}" @click="restart='no'">no</span>
+            <span class="tag" :class="{active: restart === 'always'}" @click="restart='always'">always</span>
+            <span class="tag" :class="{active: restart === 'unless-stopped'}" @click="restart='unless-stopped'">unless-stopped</span>
+            <span class="tag" :class="{active: restart === 'on-failure'}" @click="restart='on-failure'">on-failure</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">网络模式</div>
+        <input v-model="networkMode" placeholder="bridge, host, 自定义网络">
+
+        <div class="label">附加命令 command</div>
+        <input v-model="command" placeholder="npm start, python app.py">
+    </div>
+
+    <button class="btn" @click="copyYaml">📋 复制 Compose 文件</button>
+
+    <div class="output">{{ composeYml }}</div>
+</div>
+
+<script>
+const { createApp, ref, computed } = Vue
+
+createApp({
+    setup() {
+        const version = ref('3.8')
+        const serviceName = ref('web')
+        const image = ref('nginx:alpine')
+        const containerName = ref('')
+        const ports = ref('8080:80')
+        const volumes = ref('')
+        const envVars = ref('')
+        const restart = ref('always')
+        const networkMode = ref('')
+        const command = ref('')
+
+        const composeYml = computed(() => {
+            let yaml = `version: '${version.value}'
+
+services:
+  ${serviceName.value}:
+    image: ${image.value}`
+
+            if (containerName.value) yaml += `
+    container_name: ${containerName.value}`
+
+            yaml += `
+    restart: ${restart.value}`
+
+            if (ports.value) yaml += `
+    ports:
+      - "${ports.value}"`
+
+            if (volumes.value) yaml += `
+    volumes:
+      - ${volumes.value}`
+
+            if (envVars.value) yaml += `
+    environment:
+      - ${envVars.value}`
+
+            if (networkMode.value) yaml += `
+    network_mode: ${networkMode.value}`
+
+            if (command.value) yaml += `
+    command: ${command.value}`
+
+            return yaml
+        })
+
+        const copyYaml = async () => {
+            await navigator.clipboard.writeText(composeYml.value)
+            alert('复制成功！')
+        }
+
+        return {
+            version,
+            serviceName,
+            image,
+            containerName,
+            ports,
+            volumes,
+            envVars,
+            restart,
+            networkMode,
+            command,
+            composeYml,
+            copyYaml
+        }
+    }
+}).mount('#app')
+</script>
+
+</body>
+</html>

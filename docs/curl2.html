@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>curl 命令生成器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif; }
+        body { background: #f5f5f5; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .title { font-size: 22px; margin-bottom: 10px; color: #222; }
+        .desc { color: #666; margin-bottom: 20px; font-size: 14px; }
+        .card { background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #ddd; }
+        .label { font-size: 13px; color: #555; margin-bottom: 5px; margin-top: 10px; }
+        input, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; margin-bottom: 5px; }
+        .btn { padding: 8px 14px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        .btn:hover { opacity: 0.9; }
+        .output { background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #ddd; margin-top: 20px; font-family: monospace; white-space: pre-wrap; font-size: 14px; line-height: 1.5; word-break: break-all; }
+        .tag { display: inline-block; padding: 4px 8px; background: #e9f0ff; color: #0d6efd; border-radius: 4px; font-size: 12px; margin-right: 6px; margin-bottom: 6px; cursor: pointer; user-select: none; }
+        .tag.active { background: #0d6efd; color: white; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="title">curl 命令生成器</div>
+    <div class="desc">快速生成常用 curl 请求命令，支持 GET/POST/Header/Body</div>
+
+    <div class="card">
+        <div class="label">请求 URL</div>
+        <input v-model="url" placeholder="https://api.example.com/test">
+    </div>
+
+    <div class="card">
+        <div class="label">请求方法</div>
+        <div>
+            <span class="tag" :class="{active: method === 'GET'}" @click="method='GET'">GET</span>
+            <span class="tag" :class="{active: method === 'POST'}" @click="method='POST'">POST</span>
+            <span class="tag" :class="{active: method === 'PUT'}" @click="method='PUT'">PUT</span>
+            <span class="tag" :class="{active: method === 'DELETE'}" @click="method='DELETE'">DELETE</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">请求头（一行一个，格式 Key: Value）</div>
+        <textarea v-model="headers" rows="3" placeholder="Content-Type: application/json&#10;Authorization: Bearer token"></textarea>
+    </div>
+
+    <div class="card" v-if="['POST','PUT'].includes(method)">
+        <div class="label">请求体（JSON / 表单）</div>
+        <textarea v-model="body" rows="4" placeholder='{"name":"test","age":18}'></textarea>
+    </div>
+
+    <div class="card">
+        <div class="label">附加选项</div>
+        <div>
+            <span class="tag" :class="{active: follow}" @click="follow = !follow">-L 跟随重定向</span>
+            <span class="tag" :class="{active: verbose}" @click="verbose = !verbose">-v 详细输出</span>
+            <span class="tag" :class="{active: insecure}" @click="insecure = !insecure">-k 忽略SSL</span>
+        </div>
+    </div>
+
+    <button class="btn" @click="copyCmd">📋 复制 curl 命令</button>
+
+    <div class="output">{{ finalCmd }}</div>
+</div>
+
+<script>
+const { createApp, ref, computed } = Vue
+
+createApp({
+    setup() {
+        const url = ref('https://')
+        const method = ref('GET')
+        const headers = ref('')
+        const body = ref('')
+        const follow = ref(false)
+        const verbose = ref(false)
+        const insecure = ref(false)
+
+        const finalCmd = computed(() => {
+            let cmd = ['curl']
+            
+            // 修复点 1: 在 setup 脚本内部访问 ref 必须加 .value
+            if (verbose.value) cmd.push('-v')
+            if (insecure.value) cmd.push('-k')
+            if (follow.value) cmd.push('-L')
+            
+            if (method.value !== 'GET') {
+                cmd.push('-X', method.value)
+            }
+
+            // 处理 Headers
+            const hList = headers.value.trim().split('\n').filter(i => i.trim())
+            hList.forEach(line => {
+                // 移除行内多余空格并用引号包裹
+                cmd.push('-H', `"${line.trim()}"`)
+            })
+
+            // 处理 Body
+            if (body.value.trim() && ['POST','PUT'].includes(method.value)) {
+                // 简单的转义处理，防止 JSON 中的双引号破坏 shell 命令
+                cmd.push('-d', `'${body.value.trim()}'`)
+            }
+
+            cmd.push(`"${url.value}"`)
+            return cmd.join(' ')
+        })
+
+        const copyCmd = async () => {
+            try {
+                await navigator.clipboard.writeText(finalCmd.value)
+                alert('复制成功！')
+            } catch (err) {
+                alert('复制失败，请手动复制')
+            }
+        }
+
+        return {
+            url, method, headers, body,
+            follow, verbose, insecure,
+            finalCmd, copyCmd
+        }
+    }
+}).mount('#app')
+</script>
+
+</body>
+</html>
