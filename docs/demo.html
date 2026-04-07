@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Vue 3 CDN Demo</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+  <div id="app">{{ message }}</div>
+
+  <script>
+    const { createApp, ref } = Vue; // 从全局对象中解构所需方法
+
+    createApp({
+      setup() {
+        const message = ref('你好，Vue 3!');
+        return { message };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

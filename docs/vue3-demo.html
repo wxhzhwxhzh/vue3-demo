@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vue 3 全套教学 Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #161921;
+      --surface2: #1e2230;
+      --border: #2a2f3d;
+      --accent: #6ee7b7;
+      --accent2: #818cf8;
+      --accent3: #f472b6;
+      --accent4: #fbbf24;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --code-bg: #0a0c10;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem 4rem;
+    }
+
+    header {
+      text-align: center;
+      padding: 3rem 0 4rem;
+    }
+    header h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -1px;
+    }
+    header p {
+      color: var(--muted);
+      font-size: 1rem;
+      margin-top: .6rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.5rem;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color .25s, transform .2s;
+    }
+    .card:hover { border-color: var(--accent2); transform: translateY(-2px); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .tag {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: .5px;
+    }
+    .tag-ref    { background: #1a3a2a; color: var(--accent); }
+    .tag-react  { background: #1a1a38; color: var(--accent2); }
+    .tag-watch  { background: #2d1a2d; color: var(--accent3); }
+    .tag-life   { background: #2d2000; color: var(--accent4); }
+    .tag-comp   { background: #1a2a3a; color: #60a5fa; }
+    .tag-prov   { background: #2d1a1a; color: #f87171; }
+    .tag-async  { background: #1a2d2d; color: #34d399; }
+
+    .card-title {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .card-body { padding: 1.25rem; }
+
+    /* Demo areas */
+    .demo { margin-bottom: 1rem; }
+
+    button {
+      font-family: 'Syne', sans-serif;
+      font-size: .82rem;
+      font-weight: 600;
+      padding: .42rem .9rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      transition: background .18s, border-color .18s;
+    }
+    button:hover { background: #2a3050; border-color: var(--accent2); }
+    button.primary { background: #1a3a2a; border-color: var(--accent); color: var(--accent); }
+    button.primary:hover { background: #1e4a32; }
+    button.danger { background: #3a1a1a; border-color: #f87171; color: #f87171; }
+    button.danger:hover { background: #4a1e1e; }
+
+    input, select, textarea {
+      font-family: 'Syne', sans-serif;
+      font-size: .85rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: .4rem .75rem;
+      outline: none;
+      transition: border-color .18s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent2); }
+
+    .value-display {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8rem;
+      color: var(--accent);
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .5rem .8rem;
+      margin-top: .6rem;
+      word-break: break-all;
+    }
+
+    .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-bottom: .5rem; }
+    .col { display: flex; flex-direction: column; gap: .4rem; }
+
+    .list-item {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .4rem .6rem;
+      background: var(--surface2);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-bottom: .3rem;
+      font-size: .85rem;
+    }
+    .list-item button { padding: .2rem .5rem; font-size: .75rem; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: .75rem;
+      font-weight: 600;
+    }
+    .badge-green { background: #1a3a2a; color: var(--accent); }
+    .badge-blue  { background: #1a1a38; color: var(--accent2); }
+    .badge-red   { background: #3a1a1a; color: #f87171; }
+
+    .section-label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: .4rem;
+    }
+
+    .log-box {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .6rem;
+      max-height: 90px;
+      overflow-y: auto;
+      color: var(--accent4);
+    }
+    .log-box p { margin: .1rem 0; }
+
+    .progress-bar {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: .4rem 0;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--accent);
+      transition: width .3s;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      padding: .25rem .6rem;
+      border-radius: 100px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      font-size: .8rem;
+    }
+    .chip-remove { cursor: pointer; color: var(--muted); font-size: 1rem; line-height: 1; }
+    .chip-remove:hover { color: #f87171; }
+
+    .tab-bar { display: flex; gap: .3rem; margin-bottom: .75rem; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+    .tab {
+      font-size: .8rem;
+      padding: .3rem .7rem;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: none;
+    }
+    .tab.active { background: var(--surface2); border-color: var(--accent2); color: var(--accent2); }
+    .tab:hover:not(.active) { background: var(--surface2); }
+
+    .alert {
+      padding: .6rem .9rem;
+      border-radius: 6px;
+      font-size: .83rem;
+      margin-bottom: .4rem;
+    }
+    .alert-info    { background: #1a1a38; border-left: 3px solid var(--accent2); }
+    .alert-success { background: #1a3a2a; border-left: 3px solid var(--accent); }
+    .alert-warn    { background: #2d2000; border-left: 3px solid var(--accent4); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Vue 3 全套教学 Demo</h1>
+  <p>涵盖 ref · reactive · computed · watch · 生命周期 · 组件通信 · provide/inject · 异步 · 指令等核心概念</p>
+</header>
+
+<div class="grid" id="app">
+
+  <!-- ①  ref 基础 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-ref">ref</span>
+      <span class="card-title">① ref — 基本响应式</span>
+    </div>
+    <div class="card-body">
+      <div class="demo">
+        <div class="row">
+          <button @click="count--">−</button>
+          <span style="font-size:1.4rem;font-weight:800;min-width:2.5rem;text-align:center">{{ count }}</span>
+          <button @click="count++">+</button>
+          <button class="primary" @click="count = 0">重置</button>
+        </div>
+        <div class="value-display">count.value = {{ count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② reactive 对象 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-ref">reactive</span>
+      <span class="card-title">② reactive — 对象响应式</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="row">
+          <span class="section-label">姓名</span>
+          <input v-model="user.name" placeholder="输入姓名" style="width:130px" />
+        </div>
+        <div class="row">
+          <span class="section-label">年龄</span>
+          <input v-model.number="user.age" type="number" style="width:80px" />
+          <button @click="user.age++">+1岁</button>
+        </div>
+        <div class="value-display">{{ JSON.stringify(user) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ computed -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-react">computed</span>
+      <span class="card-title">③ computed — 计算属性</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="row">
+          <input v-model="firstName" placeholder="名" style="width:110px"/>
+          <input v-model="lastName" placeholder="姓" style="width:110px"/>
+        </div>
+        <div class="row">
+          <span class="section-label">全名：</span>
+          <span style="color:var(--accent);font-weight:600">{{ fullName }}</span>
+        </div>
+        <div class="row">
+          <span class="section-label">字符数：</span>
+          <span class="badge badge-blue">{{ charCount }} 字</span>
+        </div>
+        <div class="value-display">fullName = "{{ fullName }}"</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ watch -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-watch">watch</span>
+      <span class="card-title">④ watch — 侦听器</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="row">
+          <input v-model="watchInput" placeholder="输入内容…" style="flex:1"/>
+        </div>
+        <div class="section-label" style="margin-top:.4rem">变更日志</div>
+        <div class="log-box">
+          <p v-for="(log, i) in watchLogs" :key="i">{{ log }}</p>
+          <p v-if="!watchLogs.length" style="color:var(--muted)">尚无变更…</p>
+        </div>
+        <button @click="watchLogs=[]" class="danger" style="margin-top:.4rem;font-size:.75rem">清空日志</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑤ watchEffect -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-watch">watchEffect</span>
+      <span class="card-title">⑤ watchEffect — 自动追踪</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="row">
+          <span class="section-label">温度 (°C)：</span>
+          <input type="range" v-model.number="temp" min="-30" max="50" style="flex:1"/>
+          <span style="min-width:3rem;font-weight:700;color:var(--accent)">{{ temp }}°C</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: tempPercent + '%', background: tempColor }"></div>
+        </div>
+        <div class="alert" :style="{ borderLeftColor: tempColor }">{{ tempMsg }}</div>
+        <div class="log-box">
+          <p v-for="(l,i) in effectLogs" :key="i">{{ l }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑥ v-if / v-show -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-react">指令</span>
+      <span class="card-title">⑥ v-if / v-show / v-else-if</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="row">
+          <select v-model="trafficLight" style="width:120px">
+            <option>red</option>
+            <option>yellow</option>
+            <option>green</option>
+          </select>
+          <span v-if="trafficLight==='red'" class="badge badge-red">🔴 停止</span>
+          <span v-else-if="trafficLight==='yellow'" class="badge" style="background:#2d2000;color:var(--accent4)">🟡 等待</span>
+          <span v-else class="badge badge-green">🟢 通行</span>
+        </div>
+        <div class="section-label" style="margin-top:.5rem">v-show（始终渲染 DOM）</div>
+        <div class="row">
+          <button @click="showBox=!showBox">{{ showBox ? '隐藏' : '显示' }}盒子</button>
+        </div>
+        <div v-show="showBox" class="alert alert-info">
+          我用 v-show 控制，DOM 节点始终存在，仅切换 display。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑦ v-for -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-react">指令</span>
+      <span class="card-title">⑦ v-for — 列表渲染</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="row">
+          <input v-model="newTodo" placeholder="添加待办…" @keyup.enter="addTodo" style="flex:1"/>
+          <button class="primary" @click="addTodo">添加</button>
+        </div>
+        <div v-for="(todo, i) in todos" :key="todo.id" class="list-item">
+          <input type="checkbox" v-model="todo.done" />
+          <span :style="{ flex:1, textDecoration: todo.done ? 'line-through' : 'none', color: todo.done ? 'var(--muted)' : 'var(--text)' }">{{ todo.text }}</span>
+          <button class="danger" @click="todos.splice(i,1)" style="padding:.15rem .45rem">✕</button>
+        </div>
+        <div class="value-display">共 {{ todos.length }} 项，已完成 {{ todos.filter(t=>t.done).length }} 项</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑧ 事件修饰符 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-react">事件</span>
+      <span class="card-title">⑧ 事件修饰符 & 按键修饰符</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="section-label">.stop 阻止冒泡</div>
+        <div @click="eventLog('外层被点击')" style="background:var(--surface2);padding:.6rem;border-radius:6px;margin-bottom:.4rem">
+          外层
+          <button @click.stop="eventLog('.stop 阻止了冒泡')" style="margin-left:.5rem">内层(.stop)</button>
+        </div>
+        <div class="section-label">.prevent 阻止默认</div>
+        <a href="https://vuejs.org" @click.prevent="eventLog('.prevent 阻止了跳转')" style="color:var(--accent2);text-decoration:underline;font-size:.85rem">点击此链接（被.prevent拦截）</a>
+        <div class="section-label" style="margin-top:.5rem">按键修饰符 (Enter/Ctrl+Enter)</div>
+        <input @keyup.enter="eventLog('Enter 键触发')" @keyup.ctrl.enter="eventLog('Ctrl+Enter 触发')" placeholder="按 Enter 或 Ctrl+Enter…" />
+        <div class="log-box">
+          <p v-for="(l,i) in eventLogs" :key="i">{{ l }}</p>
+          <p v-if="!eventLogs.length" style="color:var(--muted)">等待事件…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑨ v-model 双向绑定 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-react">v-model</span>
+      <span class="card-title">⑨ v-model — 各类表单绑定</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="row"><span class="section-label" style="width:60px">文本</span>
+          <input v-model="form.text" placeholder="文本框" style="flex:1"/></div>
+        <div class="row"><span class="section-label" style="width:60px">数字</span>
+          <input v-model.number="form.num" type="number" style="flex:1"/></div>
+        <div class="row"><span class="section-label" style="width:60px">选择</span>
+          <select v-model="form.select" style="flex:1">
+            <option>苹果</option><option>香蕉</option><option>橙子</option>
+          </select>
+        </div>
+        <div class="row">
+          <span class="section-label" style="width:60px">多选</span>
+          <label style="font-size:.82rem;display:flex;gap:.3rem;align-items:center"><input type="checkbox" v-model="form.checks" value="Vue"/> Vue</label>
+          <label style="font-size:.82rem;display:flex;gap:.3rem;align-items:center"><input type="checkbox" v-model="form.checks" value="React"/> React</label>
+          <label style="font-size:.82rem;display:flex;gap:.3rem;align-items:center"><input type="checkbox" v-model="form.checks" value="Svelte"/> Svelte</label>
+        </div>
+        <div class="row">
+          <span class="section-label" style="width:60px">单选</span>
+          <label style="font-size:.82rem;display:flex;gap:.3rem;align-items:center"><input type="radio" v-model="form.radio" value="男"/>男</label>
+          <label style="font-size:.82rem;display:flex;gap:.3rem;align-items:center"><input type="radio" v-model="form.radio" value="女"/>女</label>
+          <label style="font-size:.82rem;display:flex;gap:.3rem;align-items:center"><input type="radio" v-model="form.radio" value="其他"/>其他</label>
+        </div>
+        <div class="value-display">{{ JSON.stringify(form) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑩ 生命周期 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-life">lifecycle</span>
+      <span class="card-title">⑩ 生命周期钩子</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.5rem">
+          <div v-for="hook in lifecycleHooks" :key="hook.name" class="list-item" :style="{ borderColor: hook.active ? 'var(--accent)' : 'var(--border)' }">
+            <span style="font-size:.75rem;font-family:'JetBrains Mono',monospace;">{{ hook.name }}</span>
+            <span v-if="hook.active" class="badge badge-green" style="font-size:.65rem;margin-left:auto">✓ 触发</span>
+          </div>
+        </div>
+        <div class="row">
+          <button @click="lifecycleCount++">触发更新 ({{ lifecycleCount }})</button>
+        </div>
+        <div class="log-box">
+          <p v-for="(l,i) in lifecycleLogs" :key="i">{{ l }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑪ 组件 + props + emit -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-comp">component</span>
+      <span class="card-title">⑪ 组件通信：props & emit</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="section-label">父组件控制</div>
+        <div class="row">
+          <input v-model="parentMsg" placeholder="输入发送给子组件的消息" style="flex:1"/>
+        </div>
+        <div class="row">
+          <span class="section-label">选择主题：</span>
+          <button @click="childTheme='green'" :class="childTheme==='green'?'primary':''">绿色</button>
+          <button @click="childTheme='blue'" :style="childTheme==='blue'?{borderColor:'var(--accent2)',color:'var(--accent2)'}:{}">蓝色</button>
+          <button @click="childTheme='pink'" :style="childTheme==='pink'?{borderColor:'var(--accent3)',color:'var(--accent3)'}:{}">粉色</button>
+        </div>
+        <!-- 子组件模拟 -->
+        <div :style="{ background: childColors[childTheme]?.bg, border: '1px solid '+ childColors[childTheme]?.border, borderRadius:'8px', padding:'.75rem', marginTop:'.4rem' }">
+          <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:.4rem">子组件 (ChildCard)</div>
+          <div :style="{ color: childColors[childTheme]?.text, fontWeight:600, marginBottom:'.4rem' }">收到 props: "{{ parentMsg || '（空）' }}"</div>
+          <button @click="emitBack" style="font-size:.78rem">emit 回调给父组件</button>
+        </div>
+        <div v-if="emitMsg" class="alert alert-success" style="margin-top:.4rem">父组件收到 emit：「{{ emitMsg }}」</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑫ provide / inject -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-prov">provide/inject</span>
+      <span class="card-title">⑫ provide / inject — 跨层传值</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="section-label">祖先组件 (provide)</div>
+        <div class="row">
+          <span style="font-size:.83rem">全局主题：</span>
+          <button @click="globalTheme='dark'" :class="globalTheme==='dark'?'primary':''">深色</button>
+          <button @click="globalTheme='light'" :class="globalTheme==='light'?'primary':''">浅色</button>
+        </div>
+        <div class="row">
+          <span style="font-size:.83rem">语言：</span>
+          <button @click="globalLang='zh'" :class="globalLang==='zh'?'primary':''">中文</button>
+          <button @click="globalLang='en'" :class="globalLang==='en'?'primary':''">English</button>
+        </div>
+        <!-- 孙子组件模拟 -->
+        <div :style="{ background: globalTheme==='dark' ? 'var(--code-bg)' : '#f0fdf4', border:'1px dashed var(--border)', borderRadius:'8px', padding:'.75rem', marginTop:'.4rem' }">
+          <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:.3rem">孙子组件 (inject)</div>
+          <span :style="{ color: globalTheme==='dark' ? 'var(--accent)' : '#065f46', fontSize:'.85rem' }">
+            {{ globalLang==='zh' ? '注入的主题：' : 'Injected theme: ' }} <b>{{ globalTheme }}</b>，{{ globalLang==='zh' ? '语言：' : 'lang: ' }}<b>{{ globalLang }}</b>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑬ 模板引用 ref -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-ref">templateRef</span>
+      <span class="card-title">⑬ 模板引用 (Template Ref)</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <textarea ref="textareaRef" v-model="refContent" rows="3" style="width:100%;resize:vertical" placeholder="点击下方按钮操作此 textarea…"></textarea>
+        <div class="row" style="flex-wrap:wrap">
+          <button @click="focusTextarea">聚焦</button>
+          <button @click="selectAll">全选</button>
+          <button @click="insertText">插入文本</button>
+          <button @click="refContent=''">清空</button>
+        </div>
+        <div class="value-display">字数：{{ refContent.length }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑭ 异步 + Suspense -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-async">async</span>
+      <span class="card-title">⑭ 异步操作 & 加载状态</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="row">
+          <button class="primary" @click="fetchData" :disabled="asyncLoading">
+            {{ asyncLoading ? '加载中…' : '模拟 fetch 数据' }}
+          </button>
+          <button @click="asyncError=!asyncError">{{ asyncError?'✓ 成功模式':'✕ 错误模式' }}</button>
+        </div>
+        <div v-if="asyncLoading" class="progress-bar" style="margin-top:.5rem">
+          <div class="progress-fill" :style="{ width: asyncProgress + '%', transition:'width .1s' }"></div>
+        </div>
+        <div v-if="asyncResult" class="alert alert-success">✓ 获取成功：{{ asyncResult }}</div>
+        <div v-if="asyncErrMsg" class="alert" style="background:#3a1a1a;border-left-color:#f87171">✕ 错误：{{ asyncErrMsg }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑮ 自定义指令 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-comp">directive</span>
+      <span class="card-title">⑮ 自定义指令</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="section-label">v-focus (自动聚焦)</div>
+        <input v-focus placeholder="此输入框使用 v-focus 自动聚焦" style="width:100%"/>
+        <div class="section-label" style="margin-top:.6rem">v-highlight (背景高亮)</div>
+        <div class="row">
+          <button @click="hlColor='#1a3a2a'" style="border-color:var(--accent)">绿色</button>
+          <button @click="hlColor='#1a1a38'" style="border-color:var(--accent2)">蓝色</button>
+          <button @click="hlColor='#2d1a2d'" style="border-color:var(--accent3)">粉色</button>
+        </div>
+        <p v-highlight="hlColor" style="padding:.5rem .75rem;border-radius:6px;font-size:.85rem;transition:background .3s">
+          此段落背景颜色由自定义 v-highlight 指令控制。
+        </p>
+        <div class="section-label">v-tooltip</div>
+        <button v-tooltip="'这是用自定义 v-tooltip 指令显示的提示'" style="font-size:.82rem">悬停查看 tooltip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑯ 动态组件 + keep-alive -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-comp">dynamic</span>
+      <span class="card-title">⑯ 动态组件 & keep-alive</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="tab-bar">
+          <button class="tab" :class="{active:dynTab==='tab1'}" @click="dynTab='tab1'">Tab A</button>
+          <button class="tab" :class="{active:dynTab==='tab2'}" @click="dynTab='tab2'">Tab B</button>
+          <button class="tab" :class="{active:dynTab==='tab3'}" @click="dynTab='tab3'">Tab C</button>
+        </div>
+        <div v-if="dynTab==='tab1'">
+          <div class="alert alert-info">Tab A 内容：每次切换都重新创建（无 keep-alive）</div>
+          <div class="row"><input v-model="tabAInput" placeholder="输入后切换Tab观察是否保留"/></div>
+        </div>
+        <div v-if="dynTab==='tab2'">
+          <div class="alert alert-success">Tab B 内容：计数器（状态不保留）</div>
+          <div class="row"><button @click="tabBCount++">点击 {{ tabBCount }}</button></div>
+        </div>
+        <div v-if="dynTab==='tab3'">
+          <div class="alert alert-warn">Tab C 内容：此 Tab 模拟 keep-alive 效果（实际由 JS 保存状态）</div>
+          <div class="row"><input v-model="tabCInput" placeholder="此输入保持状态"/></div>
+        </div>
+        <div class="value-display">当前 Tab: {{ dynTab }} | A输入: "{{ tabAInput }}" | C输入: "{{ tabCInput }}"</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑰ 过渡动画 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-react">transition</span>
+      <span class="card-title">⑰ 过渡 & 动画</span>
+    </div>
+    <div class="card-body">
+      <style>
+        .fade-enter-active, .fade-leave-active { transition: opacity .4s, transform .4s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(10px); }
+        .slide-enter-active, .slide-leave-active { transition: all .35s; }
+        .slide-enter-from { transform: translateX(-20px); opacity: 0; }
+        .slide-leave-to { transform: translateX(20px); opacity: 0; }
+        .list-transition-enter-active, .list-transition-leave-active { transition: all .3s; }
+        .list-transition-enter-from, .list-transition-leave-to { opacity: 0; transform: scale(.85); }
+        .list-transition-move { transition: transform .3s; }
+      </style>
+      <div class="col">
+        <div class="row">
+          <button @click="transFade=!transFade">Fade 切换</button>
+          <button @click="transSlide=!transSlide">Slide 切换</button>
+          <button @click="addTransItem">添加列表项</button>
+          <button @click="removeTransItem" class="danger">删除</button>
+        </div>
+        <div style="min-height:36px">
+          <transition name="fade">
+            <div v-if="transFade" class="alert alert-info">Fade 过渡元素 ✨</div>
+          </transition>
+        </div>
+        <div style="min-height:36px">
+          <transition name="slide">
+            <div v-if="transSlide" class="alert alert-success">Slide 过渡元素 →</div>
+          </transition>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.2rem">
+          <transition-group name="list-transition" tag="div" style="display:flex;flex-wrap:wrap;gap:.4rem">
+            <span v-for="item in transItems" :key="item" class="chip">{{ item }}</span>
+          </transition-group>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑱ 可写 computed + 双向 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-react">computed</span>
+      <span class="card-title">⑱ 可写 computed (get/set)</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="section-label">摄氏度 ↔ 华氏度 双向换算</div>
+        <div class="row">
+          <span style="font-size:.83rem;min-width:2rem">°C</span>
+          <input type="number" v-model.number="celsius" style="width:90px"/>
+          <span style="color:var(--muted)">=</span>
+          <input type="number" v-model.number="fahrenheit" style="width:90px"/>
+          <span style="font-size:.83rem;min-width:2rem">°F</span>
+        </div>
+        <div class="value-display">{{ celsius }}°C = {{ fahrenheit.toFixed(2) }}°F</div>
+        <div class="section-label" style="margin-top:.5rem">修改任一值，另一值自动同步</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑲ Slots -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-comp">slots</span>
+      <span class="card-title">⑲ 插槽 (Slots)</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div class="section-label">默认插槽 (default slot)</div>
+        <div style="border:1px dashed var(--border);border-radius:8px;padding:.75rem">
+          <div style="font-size:.7rem;color:var(--muted);margin-bottom:.3rem">🧩 Card 组件外壳</div>
+          <div style="background:var(--surface2);padding:.5rem;border-radius:6px">
+            <span style="color:var(--accent);font-size:.85rem">← 这是父组件插入的 slot 内容 →</span>
+          </div>
+        </div>
+        <div class="section-label" style="margin-top:.6rem">具名插槽 (named slots)</div>
+        <div style="border:1px dashed var(--border);border-radius:8px;padding:.75rem">
+          <div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem">🧩 Layout 组件外壳</div>
+          <div class="row" style="margin-bottom:.3rem">
+            <span style="font-size:.72rem;color:var(--muted)">#header →</span>
+            <span class="badge badge-blue">页眉内容</span>
+          </div>
+          <div class="row" style="margin-bottom:.3rem">
+            <span style="font-size:.72rem;color:var(--muted)">#default →</span>
+            <span style="font-size:.83rem">正文内容区域</span>
+          </div>
+          <div class="row">
+            <span style="font-size:.72rem;color:var(--muted)">#footer →</span>
+            <span class="badge badge-green">页脚内容</span>
+          </div>
+        </div>
+        <div class="section-label" style="margin-top:.6rem">作用域插槽 (scoped slots)</div>
+        <div style="border:1px dashed var(--border);border-radius:8px;padding:.75rem">
+          <div style="font-size:.7rem;color:var(--muted);margin-bottom:.3rem">子组件 provide 数据给父组件插槽</div>
+          <div v-for="item in scopedItems" :key="item.id" class="list-item">
+            <span class="badge" :style="{background:item.color+'22',color:item.color,border:'1px solid '+item.color+'44'}">{{ item.tag }}</span>
+            <span style="flex:1;font-size:.83rem">{{ item.label }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑳ 标签输入 chips -->
+  <div class="card">
+    <div class="card-header">
+      <span class="tag tag-ref">综合</span>
+      <span class="card-title">⑳ 综合示例：标签输入器</span>
+    </div>
+    <div class="card-body">
+      <div class="col">
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem;padding:.5rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;min-height:48px">
+          <transition-group name="list-transition" tag="div" style="display:contents">
+            <span v-for="(tag,i) in tagList" :key="tag" class="chip">
+              {{ tag }}
+              <span class="chip-remove" @click="tagList.splice(i,1)">×</span>
+            </span>
+          </transition-group>
+          <input v-model="tagInput" @keydown.enter.prevent="addTag" @keydown.,.prevent="addTag"
+            placeholder="输入标签后按 Enter 或逗号…"
+            style="border:none;background:transparent;outline:none;min-width:120px;flex:1;font-size:.85rem"/>
+        </div>
+        <div class="row" style="margin-top:.3rem">
+          <span style="font-size:.78rem;color:var(--muted)">已有标签：{{ tagList.length }}</span>
+          <button @click="tagList=[]" class="danger" style="font-size:.75rem;padding:.2rem .5rem">全部清除</button>
+        </div>
+        <div class="value-display">{{ JSON.stringify(tagList) }}</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import {
+  createApp, ref, reactive, computed, watch, watchEffect,
+  onMounted, onUpdated, onBeforeUnmount, onUnmounted
+} from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+
+const app = createApp({
+  setup() {
+
+    /* ① ref */
+    const count = ref(0);
+
+    /* ② reactive */
+    const user = reactive({ name: '张三', age: 25 });
+
+    /* ③ computed */
+    const firstName = ref('三');
+    const lastName  = ref('张');
+    const fullName  = computed(() => lastName.value + firstName.value);
+    const charCount = computed(() => fullName.value.length);
+
+    /* ④ watch */
+    const watchInput = ref('');
+    const watchLogs  = ref([]);
+    watch(watchInput, (nv, ov) => {
+      watchLogs.value.unshift(`[${new Date().toLocaleTimeString()}] "${ov}" → "${nv}"`);
+      if (watchLogs.value.length > 6) watchLogs.value.pop();
+    });
+
+    /* ⑤ watchEffect */
+    const temp        = ref(20);
+    const effectLogs  = ref([]);
+    const tempPercent = computed(() => Math.round((temp.value + 30) / 80 * 100));
+    const tempColor   = computed(() => {
+      if (temp.value < 0)  return '#818cf8';
+      if (temp.value < 15) return '#60a5fa';
+      if (temp.value < 30) return '#6ee7b7';
+      if (temp.value < 38) return '#fbbf24';
+      return '#f87171';
+    });
+    const tempMsg = computed(() => {
+      if (temp.value < 0)  return '❄️ 极寒，注意防冻';
+      if (temp.value < 15) return '🌬 凉爽';
+      if (temp.value < 30) return '☀️ 舒适';
+      if (temp.value < 38) return '🥵 炎热';
+      return '🔥 酷热，注意防暑！';
+    });
+    watchEffect(() => {
+      effectLogs.value.unshift(`[watchEffect] temp=${temp.value}°C → ${tempMsg.value}`);
+      if (effectLogs.value.length > 5) effectLogs.value.pop();
+    });
+
+    /* ⑥ v-if / v-show */
+    const trafficLight = ref('green');
+    const showBox      = ref(true);
+
+    /* ⑦ v-for */
+    const newTodo = ref('');
+    const todos   = reactive([
+      { id:1, text:'学习 Vue 3 基础', done: true },
+      { id:2, text:'掌握 Composition API', done: false },
+      { id:3, text:'完成项目实战', done: false },
+    ]);
+    let todoId = 4;
+    const addTodo = () => {
+      if (!newTodo.value.trim()) return;
+      todos.push({ id: todoId++, text: newTodo.value.trim(), done: false });
+      newTodo.value = '';
+    };
+
+    /* ⑧ 事件修饰符 */
+    const eventLogs = ref([]);
+    const eventLog  = msg => {
+      eventLogs.value.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
+      if (eventLogs.value.length > 5) eventLogs.value.pop();
+    };
+
+    /* ⑨ v-model */
+    const form = reactive({ text:'', num:0, select:'苹果', checks:['Vue'], radio:'男' });
+
+    /* ⑩ 生命周期 */
+    const lifecycleCount = ref(0);
+    const lifecycleLogs  = ref([]);
+    const lifecycleHooks = reactive([
+      { name:'onBeforeMount', active:false },
+      { name:'onMounted', active:false },
+      { name:'onBeforeUpdate', active:false },
+      { name:'onUpdated', active:false },
+      { name:'onBeforeUnmount', active:false },
+      { name:'onUnmounted', active:false },
+    ]);
+    const lcLog = (name) => {
+      lifecycleHooks.find(h => h.name === name && (h.active = true));
+      lifecycleLogs.value.unshift(`[${new Date().toLocaleTimeString()}] ${name} 触发`);
+      if (lifecycleLogs.value.length > 8) lifecycleLogs.value.pop();
+    };
+    onMounted(() => lcLog('onMounted'));
+    onUpdated(() => lcLog('onUpdated'));
+    onBeforeUnmount(() => lcLog('onBeforeUnmount'));
+
+    /* ⑪ 组件通信 */
+    const parentMsg   = ref('来自父组件的 Props');
+    const childTheme  = ref('green');
+    const emitMsg     = ref('');
+    const childColors = {
+      green: { bg:'#1a3a2a', border:'var(--accent)', text:'var(--accent)' },
+      blue:  { bg:'#1a1a38', border:'var(--accent2)', text:'var(--accent2)' },
+      pink:  { bg:'#2d1a2d', border:'var(--accent3)', text:'var(--accent3)' },
+    };
+    const emitBack = () => { emitMsg.value = `子组件的回调（时间：${new Date().toLocaleTimeString()}）`; };
+
+    /* ⑫ provide/inject */
+    const globalTheme = ref('dark');
+    const globalLang  = ref('zh');
+
+    /* ⑬ 模板引用 */
+    const textareaRef = ref(null);
+    const refContent  = ref('Vue 3 模板引用示例内容');
+    const focusTextarea = () => textareaRef.value?.focus();
+    const selectAll     = () => { textareaRef.value?.focus(); textareaRef.value?.select(); };
+    const insertText    = () => {
+      const ta = textareaRef.value;
+      if (!ta) return;
+      const pos = ta.selectionStart;
+      refContent.value = refContent.value.slice(0, pos) + '[插入]' + refContent.value.slice(pos);
+    };
+
+    /* ⑭ 异步 */
+    const asyncLoading  = ref(false);
+    const asyncResult   = ref('');
+    const asyncErrMsg   = ref('');
+    const asyncError    = ref(false);
+    const asyncProgress = ref(0);
+    const fetchData = async () => {
+      asyncLoading.value = true;
+      asyncResult.value  = '';
+      asyncErrMsg.value  = '';
+      asyncProgress.value = 0;
+      const timer = setInterval(() => {
+        asyncProgress.value = Math.min(asyncProgress.value + Math.random() * 20, 90);
+      }, 150);
+      await new Promise(r => setTimeout(r, 1500));
+      clearInterval(timer);
+      asyncProgress.value = 100;
+      asyncLoading.value  = false;
+      if (asyncError.value) {
+        asyncErrMsg.value = 'Network Error: 模拟请求失败 (500)';
+      } else {
+        asyncResult.value = `{ "id": ${Math.floor(Math.random()*1000)}, "status": "ok", "ts": "${new Date().toISOString()}" }`;
+      }
+    };
+
+    /* ⑰ 过渡 */
+    const transFade  = ref(true);
+    const transSlide = ref(true);
+    let transCount   = 3;
+    const transItems = ref(['Vue3', 'Transition', 'Group']);
+    const addTransItem  = () => transItems.value.push('Item' + (++transCount));
+    const removeTransItem = () => transItems.value.length && transItems.value.splice(Math.floor(Math.random() * transItems.value.length), 1);
+
+    /* ⑱ 可写 computed */
+    const celsius = ref(100);
+    const fahrenheit = computed({
+      get: () => celsius.value * 9/5 + 32,
+      set: v  => { celsius.value = (v - 32) * 5/9; }
+    });
+
+    /* ⑲ Slots */
+    const scopedItems = [
+      { id:1, tag:'默认插槽', label:'父组件填充默认内容', color:'#6ee7b7' },
+      { id:2, tag:'具名插槽', label:'通过 #name 指定位置', color:'#818cf8' },
+      { id:3, tag:'作用域插槽', label:'子组件向上暴露数据', color:'#f472b6' },
+    ];
+
+    /* ⑳ 标签输入器 */
+    const tagInput = ref('');
+    const tagList  = ref(['Vue3', 'TypeScript']);
+    const addTag = () => {
+      const t = tagInput.value.replace(/,/g,'').trim();
+      if (t && !tagList.value.includes(t)) tagList.value.push(t);
+      tagInput.value = '';
+    };
+
+    /* ⑯ 动态组件 */
+    const dynTab     = ref('tab1');
+    const tabAInput  = ref('');
+    const tabBCount  = ref(0);
+    const tabCInput  = ref('状态保留了！');
+
+    /* ⑮ 高亮色 */
+    const hlColor = ref('#1a3a2a');
+
+    return {
+      count, user,
+      firstName, lastName, fullName, charCount,
+      watchInput, watchLogs,
+      temp, tempPercent, tempColor, tempMsg, effectLogs,
+      trafficLight, showBox,
+      newTodo, todos, addTodo,
+      eventLogs, eventLog,
+      form,
+      lifecycleCount, lifecycleLogs, lifecycleHooks,
+      parentMsg, childTheme, emitMsg, childColors, emitBack,
+      globalTheme, globalLang,
+      textareaRef, refContent, focusTextarea, selectAll, insertText,
+      asyncLoading, asyncResult, asyncErrMsg, asyncError, asyncProgress, fetchData,
+      transFade, transSlide, transItems, addTransItem, removeTransItem,
+      celsius, fahrenheit,
+      scopedItems,
+      tagInput, tagList, addTag,
+      dynTab, tabAInput, tabBCount, tabCInput,
+      hlColor,
+    };
+  }
+});
+
+/* 自定义指令 */
+app.directive('focus', { mounted: el => el.focus() });
+app.directive('highlight', { mounted: (el, b) => el.style.background = b.value, updated: (el, b) => el.style.background = b.value });
+app.directive('tooltip', {
+  mounted(el, b) {
+    const tip = document.createElement('div');
+    tip.textContent = b.value;
+    tip.style.cssText = 'position:fixed;background:#1e2230;color:#e2e8f0;padding:5px 10px;border-radius:6px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .2s;border:1px solid #2a2f3d;z-index:9999;max-width:200px';
+    document.body.appendChild(tip);
+    el._tip = tip;
+    el.addEventListener('mouseenter', e => {
+      tip.style.left = e.clientX + 'px';
+      tip.style.top  = (e.clientY - 36) + 'px';
+      tip.style.opacity = '1';
+    });
+    el.addEventListener('mouseleave', () => tip.style.opacity = '0');
+    el.addEventListener('mousemove', e => {
+      tip.style.left = e.clientX + 'px';
+      tip.style.top  = (e.clientY - 36) + 'px';
+    });
+  },
+  unmounted(el) { el._tip?.remove(); }
+});
+
+app.mount('#app');
+</script>
+</body>
+</html>
