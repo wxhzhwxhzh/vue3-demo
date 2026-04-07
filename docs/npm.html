@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPM 命令生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-red-50 p-4 md:p-10 font-sans">
+
+<div id="app" class="max-w-4xl mx-auto">
+    <header class="mb-8 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-black text-red-600 tracking-tighter italic">NPM MASTER</h1>
+            <p class="text-zinc-500 text-sm font-medium">从此不再混淆 i -D 和 i -S</p>
+        </div>
+        <div class="flex bg-white p-1 rounded-xl shadow-inner border border-red-100">
+            <button v-for="m in managers" :key="m" 
+                @click="form.manager = m"
+                :class="form.manager === m ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:bg-red-50'"
+                class="px-4 py-2 rounded-lg text-sm font-bold transition-all uppercase">
+                {{ m }}
+            </button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="space-y-6">
+            <section class="bg-white p-6 rounded-2xl shadow-sm border border-red-100">
+                <h2 class="text-xs font-black text-zinc-400 uppercase tracking-widest mb-4">想要执行的操作</h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <button v-for="(label, action) in actions" :key="action"
+                        @click="form.action = action"
+                        :class="form.action === action ? 'border-red-600 bg-red-50 text-red-700' : 'border-zinc-200 text-zinc-600'"
+                        class="border-2 py-3 px-2 rounded-xl text-xs font-bold transition-all text-center">
+                        {{ label }}
+                    </button>
+                </div>
+            </section>
+
+            <section class="bg-white p-6 rounded-2xl shadow-sm border border-red-100 min-h-[200px]">
+                <h2 class="text-xs font-black text-zinc-400 uppercase tracking-widest mb-4">参数配置</h2>
+                
+                <div v-if="form.action === 'install'" class="space-y-4 animate-fade-in">
+                    <input v-model="form.packages" placeholder="包名 (空格分隔，如: vue pinia)" class="w-full border-b-2 border-zinc-100 p-2 focus:border-red-500 outline-none transition-colors font-mono">
+                    <div class="flex flex-wrap gap-4 pt-2">
+                        <label class="flex items-center text-sm cursor-pointer">
+                            <input type="radio" v-model="form.depType" value="prod" class="text-red-600 mr-2"> 生产依赖 (-S)
+                        </label>
+                        <label class="flex items-center text-sm cursor-pointer">
+                            <input type="radio" v-model="form.depType" value="dev" class="text-red-600 mr-2"> 开发依赖 (-D)
+                        </label>
+                        <label class="flex items-center text-sm cursor-pointer">
+                            <input type="radio" v-model="form.depType" value="global" class="text-red-600 mr-2"> 全局 (-g)
+                        </label>
+                    </div>
+                </div>
+
+                <div v-if="form.action === 'run'" class="animate-fade-in">
+                    <input v-model="form.script" placeholder="脚本名 (如: dev, build, serve)" class="w-full border-b-2 border-zinc-100 p-2 focus:border-red-500 outline-none font-mono">
+                </div>
+
+                <div v-if="['clean', 'outdated', 'init'].includes(form.action)" class="text-zinc-400 text-sm italic">
+                    该命令通常不需要额外参数，直接点击右侧预览。
+                </div>
+            </section>
+        </div>
+
+        <div class="space-y-4">
+            <div class="bg-zinc-900 rounded-3xl p-8 shadow-2xl relative overflow-hidden group">
+                <div class="absolute -right-4 -top-4 text-white/5 text-8xl font-black italic select-none">
+                    {{ form.manager }}
+                </div>
+
+                <div class="relative z-10">
+                    <div class="flex justify-between items-center mb-6">
+                        <span class="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase">Terminal Preview</span>
+                        <button @click="copyCommand" class="text-white bg-red-600 hover:bg-red-500 px-4 py-1.5 rounded-lg text-xs font-bold transition-transform active:scale-90">
+                            {{ copyText }}
+                        </button>
+                    </div>
+
+                    <div class="font-mono text-xl text-zinc-100 leading-relaxed min-h-[60px] break-all">
+                        <span class="text-emerald-500 mr-3">❯</span>{{ generatedCommand }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white/50 border border-red-100 p-4 rounded-2xl">
+                <h4 class="text-xs font-bold text-red-800 mb-1">💡 提示:</h4>
+                <p class="text-xs text-red-600/70 leading-relaxed">
+                    {{ tips[form.manager] }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, reactive } = Vue;
+
+    createApp({
+        setup() {
+            const managers = ['npm', 'yarn', 'pnpm'];
+            const actions = {
+                install: '安装依赖',
+                run: '运行脚本',
+                init: '初始化项目',
+                outdated: '查看过期包',
+                clean: '清理缓存',
+                list: '列出已安装'
+            };
+
+            const tips = {
+                npm: '官方默认工具，虽然速度稍慢，但兼容性最强。使用 npm ci 可以进行更纯净的安装。',
+                yarn: '由 Facebook 开发，通过缓存机制加速安装，生成的 lock 文件比 npm 更早出现。',
+                pnpm: '目前最推荐的工具！通过硬链接节省磁盘空间，安装速度极快，且严格避免依赖幽灵。'
+            };
+
+            const form = reactive({
+                manager: 'pnpm',
+                action: 'install',
+                packages: '',
+                depType: 'prod',
+                script: 'dev'
+            });
+
+            const copyText = ref('复制命令');
+
+            const generatedCommand = computed(() => {
+                const { manager, action, packages, depType, script } = form;
+                let cmd = [manager];
+
+                if (action === 'install') {
+                    // 安装逻辑
+                    if (manager === 'yarn') {
+                        if (depType === 'global') cmd.push('global add');
+                        else cmd.push('add');
+                    } else {
+                        cmd.push('install');
+                        if (depType === 'global') cmd.push('-g');
+                    }
+                    
+                    if (packages) cmd.push(packages);
+                    
+                    if (depType === 'dev' && manager !== 'yarn') cmd.push('-D');
+                    if (depType === 'dev' && manager === 'yarn') cmd.push('--dev');
+                    
+                } else if (action === 'run') {
+                    // 运行脚本
+                    if (manager === 'yarn') cmd.push(script); // yarn 直接运行不用加 run
+                    else cmd.push('run', script);
+                    
+                } else if (action === 'init') {
+                    cmd.push('init');
+                    if (manager === 'npm') cmd.push('-y');
+                } else if (action === 'outdated') {
+                    cmd.push('outdated');
+                } else if (action === 'clean') {
+                    if (manager === 'npm') cmd.push('cache clean --force');
+                    else if (manager === 'yarn') cmd.push('cache clean');
+                    else cmd.push('store prune');
+                } else if (action === 'list') {
+                    cmd.push('list', '--depth=0');
+                }
+
+                return cmd.join(' ');
+            });
+
+            const copyCommand = async () => {
+                await navigator.clipboard.writeText(generatedCommand.value);
+                copyText.value = '已复制！';
+                setTimeout(() => copyText.value = '复制命令', 2000);
+            };
+
+            return { managers, actions, form, generatedCommand, copyCommand, copyText, tips };
+        }
+    }).mount('#app');
+</script>
+
+<style>
+    .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</body>
+</html>

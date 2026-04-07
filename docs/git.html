@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git 命令生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-zinc-50 p-4 md:p-10 font-sans">
+
+<div id="app" class="max-w-5xl mx-auto">
+    <header class="mb-8 flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-black text-orange-600 tracking-tighter">GIT COMMANDER</h1>
+            <p class="text-zinc-500 text-sm">别再背命令了，勾选一下直接复制。</p>
+        </div>
+        <div class="text-right text-xs text-zinc-400 font-mono">Vue3 + Tailwind CDN</div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="space-y-6">
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-zinc-200">
+                <h2 class="font-bold text-zinc-800 mb-4 flex items-center">
+                    <span class="w-2 h-5 bg-orange-500 rounded mr-2"></span>初始化与远程
+                </h2>
+                <div class="space-y-3">
+                    <label class="flex items-center text-sm cursor-pointer">
+                        <input type="checkbox" v-model="form.init" class="rounded text-orange-500 mr-2"> 
+                        本地初始化 (git init)
+                    </label>
+                    <div>
+                        <p class="text-xs text-zinc-400 mb-1">远程仓库别名 & URL</p>
+                        <div class="flex gap-2">
+                            <input v-model="form.remoteName" placeholder="origin" class="w-20 border p-2 rounded text-sm bg-zinc-50">
+                            <input v-model="form.remoteUrl" placeholder="https://github.com/user/repo.git" class="flex-1 border p-2 rounded text-sm bg-zinc-50">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-zinc-200">
+                <h2 class="font-bold text-zinc-800 mb-4 flex items-center">
+                    <span class="w-2 h-5 bg-blue-500 rounded mr-2"></span>分支管理
+                </h2>
+                <div class="space-y-3">
+                    <div>
+                        <p class="text-xs text-zinc-400 mb-1">主分支名 (推荐 main)</p>
+                        <input v-model="form.branch" class="w-full border p-2 rounded text-sm bg-zinc-50">
+                    </div>
+                    <label class="flex items-center text-sm cursor-pointer">
+                        <input type="checkbox" v-model="form.newBranch" class="rounded text-blue-500 mr-2"> 
+                        创建并切换到新分支 (-b)
+                    </label>
+                </div>
+            </section>
+        </div>
+
+        <div class="lg:col-span-1">
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-zinc-200 h-full">
+                <h2 class="font-bold text-zinc-800 mb-4 flex items-center">
+                    <span class="w-2 h-5 bg-green-500 rounded mr-2"></span>工作流 (Workflow)
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">1. 暂存文件 (Add)</label>
+                        <select v-model="form.addType" class="w-full border p-2 rounded text-sm bg-zinc-50">
+                            <option value=".">所有更改 (git add .)</option>
+                            <option value="-u">仅跟踪的文件 (-u)</option>
+                            <option value="custom">指定文件/夹</option>
+                        </select>
+                        <input v-if="form.addType === 'custom'" v-model="form.customPath" placeholder="src/ index.html" class="mt-2 w-full border p-2 rounded text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">2. 提交信息 (Commit)</label>
+                        <textarea v-model="form.commitMsg" rows="3" placeholder="feat: initial commit" class="w-full border p-2 rounded text-sm bg-zinc-50 font-mono"></textarea>
+                    </div>
+
+                    <div class="p-3 bg-zinc-50 rounded-lg space-y-2">
+                        <label class="flex items-center text-sm cursor-pointer">
+                            <input type="checkbox" v-model="form.doPush" class="rounded text-green-600 mr-2"> 
+                            包含推送 (git push)
+                        </label>
+                        <label v-if="form.doPush" class="flex items-center text-xs text-zinc-500 ml-6">
+                            <input type="checkbox" v-model="form.forcePush" class="rounded mr-2 text-red-500"> 
+                            强制推送 (--force) ⚠️
+                        </label>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="lg:col-span-1">
+            <div class="bg-zinc-900 rounded-2xl p-6 shadow-xl sticky top-6 h-full flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-orange-400 font-bold text-xs tracking-widest uppercase">Output Script</span>
+                    <button @click="copyAll" class="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1 rounded-md transition-colors">
+                        {{ copyStatus ? 'Copied!' : 'Copy All' }}
+                    </button>
+                </div>
+                
+                <div class="flex-1 font-mono text-sm overflow-y-auto text-zinc-300 space-y-1 custom-scrollbar">
+                    <div v-for="(cmd, i) in commandList" :key="i" class="py-1 border-b border-white/5 last:border-0">
+                        <span class="text-zinc-600 mr-2">$</span>{{ cmd }}
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <div class="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                        <p class="text-[10px] text-orange-400 leading-relaxed italic text-center">
+                            提示：该脚本适用于终端直接粘贴。请确保你已在项目根目录下。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, reactive } = Vue;
+
+    createApp({
+        setup() {
+            const copyStatus = ref(false);
+            const form = reactive({
+                init: false,
+                remoteName: 'origin',
+                remoteUrl: '',
+                branch: 'main',
+                newBranch: false,
+                addType: '.',
+                customPath: '',
+                commitMsg: 'chore: update',
+                doPush: true,
+                forcePush: false
+            });
+
+            const commandList = computed(() => {
+                let cmds = [];
+
+                if (form.init) cmds.push("git init");
+                
+                if (form.remoteUrl) {
+                    cmds.push(`git remote add ${form.remoteName} ${form.remoteUrl} 2>/dev/null || git remote set-url ${form.remoteName} ${form.remoteUrl}`);
+                }
+
+                if (form.newBranch) {
+                    cmds.push(`git checkout -b ${form.branch}`);
+                } else {
+                    cmds.push(`git branch -M ${form.branch}`);
+                }
+
+                const path = form.addType === 'custom' ? form.customPath : form.addType;
+                cmds.push(`git add ${path || '.'}`);
+
+                cmds.push(`git commit -m "${form.commitMsg}"`);
+
+                if (form.doPush) {
+                    let pushCmd = `git push -u ${form.remoteName} ${form.branch}`;
+                    if (form.forcePush) pushCmd += " --force";
+                    cmds.push(pushCmd);
+                }
+
+                return cmds;
+            });
+
+            const copyAll = async () => {
+                const text = commandList.value.join('\n');
+                await navigator.clipboard.writeText(text);
+                copyStatus.value = true;
+                setTimeout(() => copyStatus.value = false, 2000);
+            };
+
+            return { form, commandList, copyAll, copyStatus };
+        }
+    }).mount('#app');
+</script>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+</style>
+</body>
+</html>

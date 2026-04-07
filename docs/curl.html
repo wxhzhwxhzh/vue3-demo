@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cURL 命令生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-slate-100 p-4 md:p-10">
+
+<div id="app" class="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl overflow-hidden flex flex-col md:flex-row">
+    
+    <div class="w-full md:w-3/5 p-8 space-y-6">
+        <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-black text-indigo-600">🌐 cURL Generator</h1>
+            <span class="text-xs bg-indigo-100 text-indigo-600 px-2 py-1 rounded font-bold">API TOOL</span>
+        </div>
+
+        <div class="flex gap-2">
+            <select v-model="form.method" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5">
+                <option v-for="m in methods" :key="m" :value="m">{{m}}</option>
+            </select>
+            <input v-model="form.url" type="text" placeholder="https://api.example.com/v1/resource" class="flex-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5">
+        </div>
+
+        <div class="space-y-3">
+            <div class="flex justify-between items-center">
+                <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Headers</h2>
+                <button @click="addHeader" class="text-xs text-indigo-600 hover:underline">+ 添加 Header</button>
+            </div>
+            <div v-for="(header, index) in form.headers" :key="index" class="flex gap-2 animate-fade-in">
+                <input v-model="header.key" placeholder="Key" class="w-1/3 bg-gray-50 border border-gray-200 text-xs rounded p-2">
+                <input v-model="header.value" placeholder="Value" class="flex-1 bg-gray-50 border border-gray-200 text-xs rounded p-2">
+                <button @click="removeHeader(index)" class="text-gray-400 hover:text-red-500">✕</button>
+            </div>
+        </div>
+
+        <div v-if="form.method !== 'GET'" class="space-y-3">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">Request Body (JSON)</h2>
+            <textarea v-model="form.body" rows="4" placeholder='{"name": "test"}' class="w-full font-mono text-xs bg-gray-50 border border-gray-300 rounded-lg p-3 focus:ring-indigo-500"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 p-4 bg-indigo-50 rounded-xl">
+            <label class="flex items-center text-sm text-indigo-800 cursor-pointer">
+                <input type="checkbox" v-model="form.insecure" class="mr-2 rounded"> 忽略 SSL (-k)
+            </label>
+            <label class="flex items-center text-sm text-indigo-800 cursor-pointer">
+                <input type="checkbox" v-model="form.verbose" class="mr-2 rounded"> 详细日志 (-v)
+            </label>
+            <label class="flex items-center text-sm text-indigo-800 cursor-pointer">
+                <input type="checkbox" v-model="form.includeHeader" class="mr-2 rounded"> 输出包含响应头 (-i)
+            </label>
+            <label class="flex items-center text-sm text-indigo-800 cursor-pointer">
+                <input type="checkbox" v-model="form.followLocation" class="mr-2 rounded"> 跟随重定向 (-L)
+            </label>
+        </div>
+    </div>
+
+    <div class="w-full md:w-2/5 bg-slate-900 p-8 text-white flex flex-col">
+        <h2 class="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Command Preview</h2>
+        
+        <div class="flex-1 font-mono text-sm leading-relaxed break-all whitespace-pre-wrap text-emerald-400">
+            {{ fullCommand }}
+        </div>
+
+        <button @click="copyCommand" class="mt-6 w-full py-3 rounded-xl font-bold transition-all active:scale-95 shadow-lg" :class="copyStatus ? 'bg-emerald-500' : 'bg-indigo-600 hover:bg-indigo-500'">
+            {{ copyStatus ? '✓ 已复制到剪贴板' : '复制 cURL 命令' }}
+        </button>
+        
+        <div class="mt-4 text-[10px] text-slate-500 italic">
+            提示：生成的命令已自动转义特殊字符并处理换行（使用 \ 符号连接）。
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, reactive } = Vue;
+
+    createApp({
+        setup() {
+            const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+            const copyStatus = ref(false);
+
+            const form = reactive({
+                method: 'GET',
+                url: '',
+                headers: [
+                    { key: 'Content-Type', value: 'application/json' }
+                ],
+                body: '',
+                insecure: false,
+                verbose: false,
+                includeHeader: false,
+                followLocation: true
+            });
+
+            const addHeader = () => form.headers.push({ key: '', value: '' });
+            const removeHeader = (index) => form.headers.splice(index, 1);
+
+            const fullCommand = computed(() => {
+                let cmd = [`curl -X ${form.method}`];
+
+                // 选项
+                if (form.insecure) cmd.push("-k");
+                if (form.verbose) cmd.push("-v");
+                if (form.includeHeader) cmd.push("-i");
+                if (form.followLocation) cmd.push("-L");
+
+                // Headers
+                form.headers.forEach(h => {
+                    if (h.key.trim()) {
+                        cmd.push(`-H "${h.key}: ${h.value}"`);
+                    }
+                });
+
+                // Body
+                if (form.method !== 'GET' && form.body.trim()) {
+                    // 处理 JSON 换行和双引号转义
+                    const escapedBody = form.body.replace(/"/g, '\\"');
+                    cmd.push(`-d "${escapedBody}"`);
+                }
+
+                // URL
+                cmd.push(`"${form.url || 'https://'}"`);
+
+                // 格式化输出：使用 \ 换行增加可读性
+                return cmd.join(' \\\n  ');
+            });
+
+            const copyCommand = async () => {
+                // 复制时将多行合并为单行或者保留换行
+                await navigator.clipboard.writeText(fullCommand.value);
+                copyStatus.value = true;
+                setTimeout(() => copyStatus.value = false, 2000);
+            };
+
+            return { form, methods, fullCommand, addHeader, removeHeader, copyCommand, copyStatus };
+        }
+    }).mount('#app');
+</script>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-out forwards;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateX(-10px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+</style>
+</body>
+</html>

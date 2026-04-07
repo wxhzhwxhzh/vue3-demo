@@ -1,219 +1,154 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <title>Vue3 全基础 Demo</title>
-  <style>
-    * { margin: 20px; font-family: Arial; }
-    .demo { border: 1px solid #eee; padding: 15px; margin: 15px 0; }
-    button { padding: 6px 12px; cursor: pointer; }
-    input { padding: 6px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>侧边栏 + iframe 布局</title>
+    <!-- Vue3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: #f8fafc;
+        }
+
+        /* 主容器 */
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* ========== 左侧侧边栏 ========== */
+        .sidebar {
+            width: 240px;
+            background: #ffffff;
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+            padding: 24px 0;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+        }
+
+        .sidebar-logo {
+            padding: 0 24px 20px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 12px;
+        }
+
+        .menu-list {
+            list-style: none;
+            padding: 0 12px;
+        }
+
+        .menu-item {
+            padding: 12px 16px;
+            margin-bottom: 4px;
+            border-radius: 8px;
+            font-size: 15px;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .menu-item:hover {
+            background: #f1f5f9;
+            color: #0284c7;
+        }
+
+        .menu-item.active {
+            background: linear-gradient(90deg, #0369a1, #0284c7);
+            color: #ffffff;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.2);
+        }
+
+        /* ========== 右侧 iframe 区域 ========== */
+        .main-box {
+            flex: 1;
+            background: #ffffff;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .main-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+        }
+    </style>
 </head>
 <body>
-  <div id="app">
-    <!-- 1. 基础响应式 -->
-    <div class="demo">
-      <h3>1. 基础响应式</h3>
-      <p>计数：{{ count }}</p>
-      <button @click="count++">+1</button>
-      <button @click="count--">-1</button>
+
+<div id="app">
+    <!-- 左侧侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-logo">导航面板</div>
+        <ul class="menu-list">
+            <li
+                v-for="(item, idx) in menuList"
+                :key="idx"
+                class="menu-item"
+                :class="{ active: activeIdx === idx }"
+                @click="switchPage(idx, item.url)"
+            >
+                {{ item.title }}
+            </li>
+        </ul>
     </div>
 
-    <!-- 2. 事件处理 -->
-    <div class="demo">
-      <h3>2. 事件处理</h3>
-      <button @click="showMsg">点击弹出消息</button>
+    <!-- 右侧 iframe -->
+    <div class="main-box">
+        <iframe class="main-iframe" :src="iframeUrl" ref="iframe"></iframe>
     </div>
+</div>
 
-    <!-- 3. 计算属性 -->
-    <div class="demo">
-      <h3>3. 计算属性</h3>
-      <input v-model="num" type="number" placeholder="输入数字">
-      <p>原值：{{ num }}</p>
-      <p>双倍：{{ doubleNum }}</p>
-    </div>
-
-    <!-- 4. 侦听器 -->
-    <div class="demo">
-      <h3>4. 侦听器</h3>
-      <input v-model="watchMsg" placeholder="输入内容测试侦听">
-      <p>侦听到变化：{{ watchMsg }}</p>
-    </div>
-
-    <!-- 5. 条件渲染 -->
-    <div class="demo">
-      <h3>5. 条件渲染 v-if / v-show</h3>
-      <button @click="isShow = !isShow">切换显示</button>
-      <div v-if="isShow">v-if 控制（会销毁/创建）</div>
-      <div v-show="isShow">v-show 控制（仅切换显示）</div>
-    </div>
-
-    <!-- 6. 列表渲染 -->
-    <div class="demo">
-      <h3>6. 列表渲染 v-for</h3>
-      <ul>
-        <li v-for="(item, index) in list" :key="index">
-          {{ index + 1 }} - {{ item }}
-        </li>
-      </ul>
-    </div>
-
-    <!-- 7. 表单双向绑定 -->
-    <div class="demo">
-      <h3>7. 表单双向绑定</h3>
-      输入：<input v-model="form.name"><br>
-      选择：<input type="checkbox" v-model="form.agree"> 同意<br>
-      结果：{{ form }}
-    </div>
-
-    <!-- 8. 组件使用 -->
-    <div class="demo">
-      <h3>8. 组件使用</h3>
-      <MyComponent />
-    </div>
-
-    <!-- 9. Props 父传子 -->
-    <div class="demo">
-      <h3>9. Props 父传子</h3>
-      <Child :msg="parentMsg" />
-    </div>
-
-    <!-- 10. Emit 子传父 -->
-    <div class="demo">
-      <h3>10. Emit 子传父</h3>
-      <p>子组件传来：{{ childMsg }}</p>
-      <EmitChild @send-data="getChildData" />
-    </div>
-
-    <!-- 11. 生命周期 -->
-    <div class="demo">
-      <h3>11. 生命周期（看控制台）</h3>
-    </div>
-
-    <!-- 12. 模板引用 ref -->
-    <div class="demo">
-      <h3>12. 模板引用 DOM</h3>
-      <div ref="domRef">我是 DOM 元素</div>
-      <button @click="getDom">获取 DOM</button>
-    </div>
-  </div>
-
-  <script type="module">
-    import { 
-      createApp, ref, computed, watch, 
-      onMounted, onUpdated, onUnmounted 
-    } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-
-    // 子组件 - 基础组件
-    const MyComponent = {
-      template: `<div>我是一个独立组件</div>`
-    }
-
-    // 子组件 - Props 接收父组件数据
-    const Child = {
-      props: ['msg'],
-      template: `<div>子组件收到：{{ msg }}</div>`
-    }
-
-    // 子组件 - Emit 向父组件发送数据
-    const EmitChild = {
-      setup(props, { emit }) {
-        const sendToParent = () => {
-          emit('send-data', '我来自子组件');
-        }
-        return { sendToParent };
-      },
-      template: `<button @click="sendToParent">点我发送数据给父组件</button>`
-    }
+<script>
+    const { createApp, ref } = Vue
 
     createApp({
-      components: {
-        MyComponent,
-        Child,
-        EmitChild
-      },
-      setup() {
-        // ------------------------------
-        // 1. 基础响应式
-        const count = ref(0);
+        setup() {
+            // 菜单配置（自行修改）
+            const menuList = ref([
+               
+                { title: "ssh", url: "./ssh.html" },
+                { title: "git", url: "./git.html" },
+                { title: "npm", url: "./npm.html" },
+                { title: "百度", url: "https://www.baidu.com" },
+            ])
 
-        // ------------------------------
-        // 2. 事件处理
-        const showMsg = () => alert('Hello Vue3!');
+            // 当前选中菜单
+            const activeIdx = ref(0)
+            // iframe 地址
+            const iframeUrl = ref(menuList.value[0].url)
 
-        // ------------------------------
-        // 3. 计算属性
-        const num = ref(1);
-        const doubleNum = computed(() => num.value * 2);
+            // 切换菜单
+            function switchPage(idx, url) {
+                activeIdx.value = idx
+                iframeUrl.value = url
+            }
 
-        // ------------------------------
-        // 4. 侦听器
-        const watchMsg = ref('');
-        watch(watchMsg, (newVal) => {
-          console.log('内容变化：', newVal);
-        });
-
-        // ------------------------------
-        // 5. 条件渲染
-        const isShow = ref(true);
-
-        // ------------------------------
-        // 6. 列表渲染
-        const list = ref(['苹果', '香蕉', '橙子', '葡萄']);
-
-        // ------------------------------
-        // 7. 表单绑定
-        const form = ref({
-          name: '',
-          agree: false
-        });
-
-        // ------------------------------
-        // 9. Props 父传子
-        const parentMsg = ref('我是父组件的消息');
-
-        // ------------------------------
-        // 10. Emit 子传父
-        const childMsg = ref('');
-        const getChildData = (data) => {
-          childMsg.value = data;
-        };
-
-        // ------------------------------
-        // 11. 生命周期
-        onMounted(() => {
-          console.log('组件挂载完成');
-        });
-        onUpdated(() => {
-          console.log('组件更新');
-        });
-        onUnmounted(() => {
-          console.log('组件销毁');
-        });
-
-        // ------------------------------
-        // 12. 模板引用
-        const domRef = ref(null);
-        const getDom = () => {
-          console.log(domRef.value);
-          domRef.value.style.color = 'red';
-        };
-
-        return {
-          count,
-          showMsg,
-          num, doubleNum,
-          watchMsg,
-          isShow,
-          list,
-          form,
-          parentMsg,
-          childMsg, getChildData,
-          domRef, getDom
-        };
-      }
-    }).mount('#app');
-  </script>
+            return {
+                menuList,
+                activeIdx,
+                iframeUrl,
+                switchPage
+            }
+        }
+    }).mount('#app')
+</script>
 </body>
 </html>

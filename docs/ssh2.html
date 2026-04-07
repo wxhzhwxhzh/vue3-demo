@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH 命令生成器 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-slate-50 p-6">
+
+<div id="app" class="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
+    <h1 class="text-2xl font-bold mb-6 text-slate-800 flex items-center">
+        <span class="mr-2">🛠️</span> SSH 命令增强生成器
+    </h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-4">
+            <h2 class="font-semibold text-slate-700 border-l-4 border-blue-500 pl-2">基础设置</h2>
+            <div class="grid grid-cols-2 gap-3">
+                <input v-model="form.user" placeholder="用户名(root)" class="border p-2 rounded w-full text-sm">
+                <input v-model="form.host" placeholder="主机地址" class="border p-2 rounded w-full text-sm">
+            </div>
+            <input v-model.number="form.port" type="number" placeholder="SSH 端口 (22)" class="border p-2 rounded w-full text-sm">
+            
+            <div class="p-3 bg-slate-50 rounded-lg">
+                <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">认证方式</label>
+                <div class="flex space-x-4">
+                    <label class="text-sm cursor-pointer"><input type="radio" v-model="form.authType" value="password"> 密码</label>
+                    <label class="text-sm cursor-pointer"><input type="radio" v-model="form.authType" value="key"> 密钥</label>
+                </div>
+                <input v-if="form.authType === 'key'" v-model="form.keyPath" class="mt-2 border p-2 rounded w-full text-sm" placeholder="密钥路径 (~/.ssh/id_rsa)">
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <h2 class="font-semibold text-slate-700 border-l-4 border-emerald-500 pl-2">端口转发 (Tunneling)</h2>
+            <select v-model="form.forwardType" class="border p-2 rounded w-full text-sm">
+                <option value="none">无转发</option>
+                <option value="L">本地转发 (-L) - 访问远程服务</option>
+                <option value="R">远程转发 (-R) - 内网穿透</option>
+                <option value="D">动态转发 (-D) - SOCKS 代理</option>
+            </select>
+
+            <div v-if="form.forwardType !== 'none'" class="grid grid-cols-2 gap-2 animate-fade-in">
+                <div v-if="form.forwardType !== 'D'">
+                    <label class="text-xs text-slate-500">本地端口/地址</label>
+                    <input v-model="form.fLocal" placeholder="8080" class="border p-2 rounded w-full text-sm">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-500">{{ form.forwardType === 'D' ? '代理端口' : '远程端口/地址' }}</label>
+                    <input v-model="form.fRemote" placeholder="127.0.0.1:80" class="border p-2 rounded w-full text-sm">
+                </div>
+            </div>
+
+            <h2 class="font-semibold text-slate-700 border-l-4 border-purple-500 pl-2 mt-4">其他参数</h2>
+            <div class="flex flex-wrap gap-3">
+                <label class="text-sm"><input type="checkbox" v-model="form.options" value="-N"> 不执行命令 (-N)</label>
+                <label class="text-sm"><input type="checkbox" v-model="form.options" value="-f"> 后台运行 (-f)</label>
+                <label class="text-sm"><input type="checkbox" v-model="form.options" value="-v"> 调试模式 (-v)</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <div class="bg-slate-900 rounded-xl p-5 shadow-inner relative group">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-mono text-slate-500 uppercase tracking-widest">Final SSH Command</span>
+                <button @click="copyCommand" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-4 py-1.5 rounded-lg transition-all active:scale-95">
+                    {{ copyText }}
+                </button>
+            </div>
+            <code class="text-emerald-400 break-all font-mono text-lg leading-relaxed">
+                {{ fullCommand }}
+            </code>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed } = Vue;
+
+    createApp({
+        setup() {
+            const form = ref({
+                user: 'root',
+                host: '',
+                port: 22,
+                authType: 'password',
+                keyPath: '~/.ssh/id_rsa',
+                forwardType: 'none',
+                fLocal: '8080',
+                fRemote: '127.0.0.1:80',
+                options: []
+            });
+
+            const copyText = ref('复制命令');
+
+            const fullCommand = computed(() => {
+                let parts = ['ssh'];
+
+                // 端口
+                if (form.value.port !== 22) parts.push(`-p ${form.value.port}`);
+
+                // 认证
+                if (form.value.authType === 'key' && form.value.keyPath) {
+                    parts.push(`-i ${form.value.keyPath}`);
+                }
+
+                // 端口转发逻辑
+                if (form.value.forwardType !== 'none') {
+                    if (form.value.forwardType === 'D') {
+                        parts.push(`-D ${form.value.fRemote}`);
+                    } else {
+                        // -L 或 -R: 本地端口:远程地址:远程端口
+                        parts.push(`-${form.value.forwardType} ${form.value.fLocal}:${form.value.fRemote}`);
+                    }
+                }
+
+                // 其他开关
+                if (form.value.options.length > 0) {
+                    parts.push(form.value.options.join(' '));
+                }
+
+                // 目标
+                const target = `${form.value.user}@${form.value.host || 'example.com'}`;
+                parts.push(target);
+
+                return parts.join(' ');
+            });
+
+            const copyCommand = async () => {
+                await navigator.clipboard.writeText(fullCommand.value);
+                copyText.value = '✅ 已复制';
+                setTimeout(() => copyText.value = '复制命令', 2000);
+            };
+
+            return { form, fullCommand, copyCommand, copyText };
+        }
+    }).mount('#app');
+</script>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+</body>
+</html>
