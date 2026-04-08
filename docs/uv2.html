@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>uv 命令生成器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #ffffff;
+            --surface: #f8f8f8;
+            --border: #e5e5e5;
+            --border-strong: #d0d0d0;
+            --text: #0f0f0f;
+            --muted: #888;
+            --accent: #0f0f0f;
+            --mono: 'JetBrains Mono', monospace;
+            --sans: 'Inter', system-ui, sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            min-height: 100vh;
+            padding: 3rem 2rem 5rem;
+        }
+
+        #app { max-width: 760px; margin: 0 auto; }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 3rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-wrap { display: flex; align-items: center; gap: 0.75rem; }
+
+        .logo-icon {
+            width: 36px; height: 36px;
+            background: var(--text);
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .logo-icon svg { width: 20px; height: 20px; }
+
+        .logo-title {
+            font-family: var(--mono);
+            font-size: 1.25rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .header-desc {
+            font-size: 0.75rem;
+            color: var(--muted);
+            letter-spacing: 0.02em;
+        }
+
+        /* Section */
+        .panel {
+            margin-bottom: 0;
+            padding: 1.5rem 0;
+            border-bottom: 1px solid var(--border);
+            animation: fadeIn 0.2s ease;
+        }
+        .panel:first-of-type { border-top: 1px solid var(--border); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .section-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+        .section-label .dot { display: none; }
+
+        .sub-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin: 1rem 0 0.6rem;
+        }
+
+        .field-label {
+            font-size: 0.72rem;
+            color: var(--muted);
+            margin-bottom: 0.4rem;
+            font-weight: 500;
+        }
+
+        /* Command tabs */
+        .cmd-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+        .cmd-tab {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.4rem 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-family: var(--mono);
+            font-size: 0.78rem;
+            cursor: pointer;
+            background: transparent;
+            color: var(--muted);
+            transition: all 0.1s;
+        }
+        .cmd-tab:hover { border-color: var(--border-strong); color: var(--text); }
+        .cmd-tab.active { background: var(--text); border-color: var(--text); color: #fff; }
+
+        .badge {
+            font-size: 0.6rem;
+            font-family: var(--sans);
+            background: rgba(255,255,255,0.2);
+            color: inherit;
+            padding: 0.05rem 0.35rem;
+            border-radius: 100px;
+            letter-spacing: 0.04em;
+        }
+        .cmd-tab:not(.active) .badge {
+            background: var(--surface);
+            color: var(--muted);
+        }
+
+        /* Inputs */
+        input, select {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 0.82rem;
+            padding: 0.55rem 0.8rem;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        input:focus, select:focus { border-color: var(--text); }
+        select option { background: var(--bg); }
+
+        /* Chips */
+        .chip-group { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+        .chip {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.35rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            cursor: pointer;
+            user-select: none;
+            color: var(--muted);
+            background: transparent;
+            transition: all 0.1s;
+        }
+        .chip:hover { border-color: var(--border-strong); color: var(--text); }
+        .chip.active, .chip.active-blue, .chip.active-green {
+            background: var(--text); border-color: var(--text); color: #fff;
+        }
+
+        /* Grid */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+
+        @media (max-width: 560px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        .divider { height: 1px; background: var(--border); margin: 1rem 0; }
+
+        /* Package input */
+        .pkg-row { display: flex; gap: 0.5rem; }
+        .pkg-row input { flex: 1; }
+
+        .add-btn {
+            background: var(--text);
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-family: var(--mono);
+            font-size: 1rem;
+            padding: 0 1.1rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: opacity 0.1s;
+        }
+        .add-btn:hover { opacity: 0.7; }
+
+        .pkg-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.75rem; }
+
+        .pkg-tag {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.7rem;
+            color: var(--text);
+        }
+        .pkg-tag .rm {
+            color: var(--muted); cursor: pointer; font-size: 0.9rem; line-height: 1;
+            transition: color 0.1s;
+        }
+        .pkg-tag .rm:hover { color: var(--text); }
+
+        /* Output */
+        .output-panel {
+            margin-top: 2.5rem;
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .output-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .output-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+        }
+
+        .copy-btn {
+            background: var(--text);
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-family: var(--sans);
+            font-size: 0.72rem;
+            font-weight: 500;
+            padding: 0.4rem 1rem;
+            cursor: pointer;
+            transition: opacity 0.1s;
+        }
+        .copy-btn:hover { opacity: 0.7; }
+        .copy-btn.copied { background: #16a34a; }
+
+        .command-text {
+            font-family: var(--mono);
+            font-size: 0.95rem;
+            line-height: 1.8;
+            word-break: break-all;
+            color: var(--text);
+        }
+
+        .t-cmd  { color: #0f0f0f; font-weight: 500; }
+        .t-sub  { color: #2563eb; }
+        .t-flag { color: #d97706; }
+        .t-pkg  { color: #16a34a; }
+        .t-val  { color: var(--muted); }
+
+        .hint {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            padding: 0.6rem 0.9rem;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            color: #92400e;
+            margin-top: 0.75rem;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="logo-wrap">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 3L3 8l9 5 9-5-9-5z" fill="#fff"/>
+                    <path d="M3 16l9 5 9-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M3 12l9 5 9-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="logo-title">uv</div>
+        </div>
+        <div class="header-desc">命令生成器</div>
+    </div>
+
+    <!-- 命令类型 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>命令类型 Command</div>
+        <div class="cmd-tabs">
+            <button v-for="c in commands" :key="c.value"
+                    class="cmd-tab" :class="{ active: form.cmd === c.value }"
+                    @click="form.cmd = c.value">
+                {{ c.label }}
+                <span v-if="c.badge" class="badge">{{ c.badge }}</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- pip add/remove -->
+    <div class="panel" v-if="['add','remove','sync','pip-install','pip-compile'].includes(form.cmd)">
+        <div class="section-label"><span class="dot"></span>包名称 Packages</div>
+        <div class="pkg-row">
+            <input v-model="pkgInput" :placeholder="pkgPlaceholder" @keyup.enter="addPkg">
+            <button class="add-btn" @click="addPkg">+</button>
+        </div>
+        <div class="pkg-tags" v-if="form.packages.length">
+            <span class="pkg-tag" v-for="(p,i) in form.packages" :key="i">
+                {{ p }}<span class="rm" @click="removePkg(i)">×</span>
+            </span>
+        </div>
+
+        <!-- add options -->
+        <template v-if="form.cmd === 'add'">
+            <div class="divider"></div>
+            <div class="sub-label">依赖分组</div>
+            <div class="chip-group">
+                <span v-for="g in depGroups" :key="g.value"
+                      class="chip" :class="{ active: form.depGroup === g.value }"
+                      @click="form.depGroup = g.value">{{ g.label }}</span>
+            </div>
+        </template>
+
+        <!-- pip compile options -->
+        <template v-if="form.cmd === 'pip-compile'">
+            <div class="divider"></div>
+            <div class="grid-2">
+                <div>
+                    <div class="field-label">输出文件</div>
+                    <input v-model="form.outputFile" placeholder="requirements.txt">
+                </div>
+                <div>
+                    <div class="field-label">Python 版本约束</div>
+                    <input v-model="form.pythonConstraint" placeholder=">=3.11">
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- init -->
+    <div class="panel" v-if="form.cmd === 'init'">
+        <div class="section-label"><span class="dot"></span>项目设置</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">项目名称</div>
+                <input v-model="form.projectName" placeholder="my-project">
+            </div>
+            <div>
+                <div class="field-label">Python 版本</div>
+                <input v-model="form.initPython" placeholder="3.12">
+            </div>
+        </div>
+        <div class="sub-label" style="margin-top:0.9rem">项目类型</div>
+        <div class="chip-group">
+            <span v-for="t in initTypes" :key="t.value"
+                  class="chip" :class="{ active: form.initType === t.value }"
+                  @click="form.initType = t.value">{{ t.label }}</span>
+        </div>
+        <div class="divider"></div>
+        <div class="chip-group">
+            <span class="chip" :class="{ 'active-blue': form.initNoReadme }" @click="form.initNoReadme = !form.initNoReadme">--no-readme</span>
+            <span class="chip" :class="{ 'active-blue': form.initNoPin }" @click="form.initNoPin = !form.initNoPin">--no-pin-python</span>
+            <span class="chip" :class="{ 'active-blue': form.initBuildBackend !== '' }" @click="toggleBuildBackend">--build-backend</span>
+        </div>
+        <div v-if="form.initBuildBackend !== null" style="margin-top:0.6rem">
+            <div class="field-label">Build Backend</div>
+            <select v-model="form.initBuildBackend">
+                <option value="hatch">hatch</option>
+                <option value="flit-core">flit-core</option>
+                <option value="pdm-backend">pdm-backend</option>
+                <option value="setuptools">setuptools</option>
+                <option value="maturin">maturin (Rust)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- run -->
+    <div class="panel" v-if="form.cmd === 'run'">
+        <div class="section-label"><span class="dot"></span>运行设置</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">命令 / 脚本</div>
+                <input v-model="form.runCmd" placeholder="python, pytest, ruff ...">
+            </div>
+            <div>
+                <div class="field-label">附加参数</div>
+                <input v-model="form.runArgs" placeholder="-- --verbose">
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div class="chip-group">
+            <span class="chip" :class="{ active: form.runWith }" @click="form.runWith = !form.runWith">--with &lt;pkg&gt;</span>
+            <span class="chip" :class="{ active: form.runIsolated }" @click="form.runIsolated = !form.runIsolated">--isolated</span>
+            <span class="chip" :class="{ active: form.runNoProject }" @click="form.runNoProject = !form.runNoProject">--no-project</span>
+        </div>
+        <div v-if="form.runWith" style="margin-top:0.6rem">
+            <div class="field-label">--with 包名</div>
+            <input v-model="form.runWithPkg" placeholder="rich, httpx">
+        </div>
+    </div>
+
+    <!-- python -->
+    <div class="panel" v-if="form.cmd === 'python'">
+        <div class="section-label"><span class="dot"></span>Python 管理</div>
+        <div class="sub-label">操作</div>
+        <div class="chip-group">
+            <span v-for="a in pythonActions" :key="a.value"
+                  class="chip" :class="{ active: form.pythonAction === a.value }"
+                  @click="form.pythonAction = a.value">{{ a.label }}</span>
+        </div>
+        <div style="margin-top:0.75rem" v-if="form.pythonAction !== 'list'">
+            <div class="field-label">版本</div>
+            <input v-model="form.pythonVersion" placeholder="3.12, 3.11.8, pypy3.10">
+        </div>
+    </div>
+
+    <!-- venv -->
+    <div class="panel" v-if="form.cmd === 'venv'">
+        <div class="section-label"><span class="dot"></span>虚拟环境设置</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">环境路径</div>
+                <input v-model="form.venvPath" placeholder=".venv">
+            </div>
+            <div>
+                <div class="field-label">Python 版本</div>
+                <input v-model="form.venvPython" placeholder="3.12">
+            </div>
+        </div>
+        <div class="chip-group" style="margin-top:0.75rem">
+            <span class="chip" :class="{ 'active-green': form.venvSeedPackages }" @click="form.venvSeedPackages = !form.venvSeedPackages">--seed (pip/setuptools)</span>
+            <span class="chip" :class="{ 'active-green': form.venvSystem }" @click="form.venvSystem = !form.venvSystem">--system-site-packages</span>
+        </div>
+    </div>
+
+    <!-- tool -->
+    <div class="panel" v-if="form.cmd === 'tool'">
+        <div class="section-label"><span class="dot"></span>工具管理</div>
+        <div class="sub-label">操作</div>
+        <div class="chip-group">
+            <span v-for="a in toolActions" :key="a.value"
+                  class="chip" :class="{ active: form.toolAction === a.value }"
+                  @click="form.toolAction = a.value">{{ a.label }}</span>
+        </div>
+        <div style="margin-top:0.75rem" v-if="form.toolAction !== 'list'">
+            <div class="field-label">工具名称</div>
+            <input v-model="form.toolName" placeholder="ruff, black, mypy">
+        </div>
+        <div v-if="form.toolAction === 'run'">
+            <div class="field-label" style="margin-top:0.5rem">运行参数</div>
+            <input v-model="form.toolRunArgs" placeholder="--check .">
+        </div>
+    </div>
+
+    <!-- lock / sync -->
+    <div class="panel" v-if="form.cmd === 'lock'">
+        <div class="section-label"><span class="dot"></span>Lock 选项</div>
+        <div class="chip-group">
+            <span class="chip" :class="{ active: form.lockCheck }" @click="form.lockCheck = !form.lockCheck">--check</span>
+            <span class="chip" :class="{ active: form.lockFrozen }" @click="form.lockFrozen = !form.lockFrozen">--frozen</span>
+            <span class="chip" :class="{ active: form.lockUpgrade }" @click="form.lockUpgrade = !form.lockUpgrade">--upgrade</span>
+        </div>
+    </div>
+
+    <div class="panel" v-if="form.cmd === 'sync'">
+        <div class="section-label"><span class="dot"></span>Sync 选项</div>
+        <div class="chip-group">
+            <span class="chip" :class="{ active: form.syncFrozen }" @click="form.syncFrozen = !form.syncFrozen">--frozen</span>
+            <span class="chip" :class="{ active: form.syncNoInstall }" @click="form.syncNoInstall = !form.syncNoInstall">--no-install-project</span>
+            <span class="chip" :class="{ active: form.syncAllExtras }" @click="form.syncAllExtras = !form.syncAllExtras">--all-extras</span>
+            <span class="chip" :class="{ active: form.syncDev }" @click="form.syncDev = !form.syncDev">--dev</span>
+        </div>
+    </div>
+
+    <!-- 通用选项 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>通用选项 Global Flags</div>
+        <div class="chip-group">
+            <span v-for="opt in globalOpts" :key="opt.value"
+                  class="chip" :class="{ active: form.globalOptions.includes(opt.value) }"
+                  @click="toggleGlobal(opt.value)">{{ opt.label }}</span>
+        </div>
+        <div class="divider"></div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">Python 解释器 (--python)</div>
+                <input v-model="form.pythonInterp" placeholder="3.12 / python3.11 / pypy">
+            </div>
+            <div>
+                <div class="field-label">镜像源 (--index)</div>
+                <select v-model="form.indexPreset" @change="onIndexPresetChange">
+                    <option value="">不使用镜像源</option>
+                    <option value="tuna">🎓 清华大学 TUNA</option>
+                    <option value="aliyun">☁️ 阿里云</option>
+                    <option value="bfsu">🏫 北京外国语大学 BFSU</option>
+                    <option value="douban">🫘 豆瓣</option>
+                    <option value="huawei">🔶 华为云</option>
+                    <option value="tencent">🔵 腾讯云</option>
+                    <option value="netease">🎵 网易</option>
+                    <option value="official">🌐 官方 PyPI</option>
+                    <option value="custom">✏️ 自定义...</option>
+                </select>
+                <div v-if="form.indexPreset === 'custom'" style="margin-top:0.5rem">
+                    <input v-model="form.indexUrl" placeholder="https://your-mirror.com/simple">
+                </div>
+                <div v-if="form.indexPreset && form.indexPreset !== 'custom'" class="hint" style="margin-top:0.5rem">
+                    {{ resolvedIndexUrl }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 输出 -->
+    <div class="output-panel">
+        <div class="output-header">
+            <div class="output-label">Generated Command</div>
+            <button class="copy-btn" :class="{ copied: copied }" @click="copyCmd">
+                {{ copied ? '✓ 已复制' : '复制' }}
+            </button>
+        </div>
+        <div class="command-text" v-html="highlighted"></div>
+    </div>
+
+</div>
+
+<script>
+const { createApp, ref, computed } = Vue;
+
+createApp({
+    setup() {
+        const form = ref({
+            cmd: 'add',
+            packages: [],
+            depGroup: 'prod',
+
+            projectName: '',
+            initPython: '',
+            initType: 'app',
+            initNoReadme: false,
+            initNoPin: false,
+            initBuildBackend: null,
+
+            runCmd: '',
+            runArgs: '',
+            runWith: false,
+            runWithPkg: '',
+            runIsolated: false,
+            runNoProject: false,
+
+            pythonAction: 'install',
+            pythonVersion: '',
+
+            venvPath: '',
+            venvPython: '',
+            venvSeedPackages: false,
+            venvSystem: false,
+
+            toolAction: 'install',
+            toolName: '',
+            toolRunArgs: '',
+
+            lockCheck: false,
+            lockFrozen: false,
+            lockUpgrade: false,
+
+            syncFrozen: false,
+            syncNoInstall: false,
+            syncAllExtras: false,
+            syncDev: false,
+
+            outputFile: '',
+            pythonConstraint: '',
+
+            globalOptions: [],
+            pythonInterp: '',
+            indexPreset: '',
+            indexUrl: '',
+        });
+
+        const pkgInput = ref('');
+        const copied = ref(false);
+
+        const mirrorMap = {
+            tuna:    'https://pypi.tuna.tsinghua.edu.cn/simple',
+            aliyun:  'https://mirrors.aliyun.com/pypi/simple',
+            bfsu:    'https://mirrors.bfsu.edu.cn/pypi/web/simple',
+            douban:  'https://pypi.douban.com/simple',
+            huawei:  'https://repo.huaweicloud.com/repository/pypi/simple',
+            tencent: 'https://mirrors.cloud.tencent.com/pypi/simple',
+            netease: 'https://mirrors.163.com/pypi/simple',
+            official:'https://pypi.org/simple',
+        };
+
+        const resolvedIndexUrl = computed(() => {
+            const p = form.value.indexPreset;
+            if (!p || p === 'custom') return form.value.indexUrl;
+            return mirrorMap[p] || '';
+        });
+
+        const onIndexPresetChange = () => {
+            if (form.value.indexPreset !== 'custom') form.value.indexUrl = '';
+        };
+
+        const commands = [
+            { value: 'add',         label: 'add',           badge: null },
+            { value: 'remove',      label: 'remove',        badge: null },
+            { value: 'sync',        label: 'sync',          badge: null },
+            { value: 'lock',        label: 'lock',          badge: null },
+            { value: 'run',         label: 'run',           badge: null },
+            { value: 'init',        label: 'init',          badge: null },
+            { value: 'venv',        label: 'venv',          badge: null },
+            { value: 'python',      label: 'python',        badge: null },
+            { value: 'tool',        label: 'tool',          badge: null },
+            { value: 'pip-install', label: 'pip install',   badge: 'pip' },
+            { value: 'pip-compile', label: 'pip compile',   badge: 'pip' },
+        ];
+
+        const depGroups = [
+            { value: 'prod',    label: '生产依赖 (默认)' },
+            { value: 'dev',     label: '--dev' },
+            { value: 'optional',label: '--optional' },
+            { value: 'group',   label: '--group' },
+        ];
+
+        const initTypes = [
+            { value: 'app',     label: 'app (默认)' },
+            { value: 'lib',     label: '--lib' },
+            { value: 'script',  label: '--script' },
+            { value: 'package', label: '--package' },
+        ];
+
+        const pythonActions = [
+            { value: 'install', label: 'install' },
+            { value: 'list',    label: 'list' },
+            { value: 'find',    label: 'find' },
+            { value: 'pin',     label: 'pin' },
+            { value: 'uninstall', label: 'uninstall' },
+        ];
+
+        const toolActions = [
+            { value: 'install', label: 'install' },
+            { value: 'run',     label: 'run' },
+            { value: 'list',    label: 'list' },
+            { value: 'uninstall', label: 'uninstall' },
+            { value: 'update',  label: 'update' },
+        ];
+
+        const globalOpts = [
+            { value: '--no-cache',      label: '--no-cache' },
+            { value: '--frozen',        label: '--frozen' },
+            { value: '--quiet',         label: '--quiet' },
+            { value: '--verbose',       label: '--verbose' },
+            { value: '--offline',       label: '--offline' },
+            { value: '--prerelease=allow', label: '--prerelease=allow' },
+        ];
+
+        const pkgPlaceholder = computed(() => {
+            if (form.value.cmd === 'pip-compile') return 'requirements.in, pyproject.toml';
+            if (form.value.cmd === 'pip-install') return 'flask>=3.0, httpx, numpy';
+            return 'flask>=3.0, requests, numpy==2.0';
+        });
+
+        const addPkg = () => {
+            const v = pkgInput.value.trim();
+            if (v && !form.value.packages.includes(v)) form.value.packages.push(v);
+            pkgInput.value = '';
+        };
+
+        const removePkg = (i) => form.value.packages.splice(i, 1);
+        const toggleGlobal = (v) => {
+            const arr = form.value.globalOptions;
+            const idx = arr.indexOf(v);
+            idx === -1 ? arr.push(v) : arr.splice(idx, 1);
+        };
+
+        const toggleBuildBackend = () => {
+            form.value.initBuildBackend = form.value.initBuildBackend === null ? 'hatch' : null;
+        };
+
+        const fullCommand = computed(() => {
+            const f = form.value;
+            let parts = ['uv'];
+
+            switch (f.cmd) {
+                case 'add':
+                    parts.push('add');
+                    if (f.packages.length) parts.push(...f.packages);
+                    if (f.depGroup === 'dev') parts.push('--dev');
+                    else if (f.depGroup === 'optional') parts.push('--optional');
+                    else if (f.depGroup === 'group') parts.push('--group');
+                    break;
+
+                case 'remove':
+                    parts.push('remove');
+                    if (f.packages.length) parts.push(...f.packages);
+                    break;
+
+                case 'sync':
+                    parts.push('sync');
+                    if (f.syncFrozen) parts.push('--frozen');
+                    if (f.syncNoInstall) parts.push('--no-install-project');
+                    if (f.syncAllExtras) parts.push('--all-extras');
+                    if (f.syncDev) parts.push('--dev');
+                    break;
+
+                case 'lock':
+                    parts.push('lock');
+                    if (f.lockCheck) parts.push('--check');
+                    if (f.lockFrozen) parts.push('--frozen');
+                    if (f.lockUpgrade) parts.push('--upgrade');
+                    break;
+
+                case 'run':
+                    parts.push('run');
+                    if (f.runIsolated) parts.push('--isolated');
+                    if (f.runNoProject) parts.push('--no-project');
+                    if (f.runWith && f.runWithPkg) parts.push('--with', f.runWithPkg);
+                    if (f.runCmd) parts.push(f.runCmd);
+                    if (f.runArgs) parts.push(f.runArgs);
+                    break;
+
+                case 'init':
+                    parts.push('init');
+                    if (f.projectName) parts.push(f.projectName);
+                    if (f.initPython) parts.push('--python', f.initPython);
+                    if (f.initType !== 'app') {
+                        if (f.initType === 'lib') parts.push('--lib');
+                        else if (f.initType === 'script') parts.push('--script');
+                        else if (f.initType === 'package') parts.push('--package');
+                    }
+                    if (f.initNoReadme) parts.push('--no-readme');
+                    if (f.initNoPin) parts.push('--no-pin-python');
+                    if (f.initBuildBackend) parts.push('--build-backend', f.initBuildBackend);
+                    break;
+
+                case 'venv':
+                    parts.push('venv');
+                    if (f.venvPath) parts.push(f.venvPath);
+                    if (f.venvPython) parts.push('--python', f.venvPython);
+                    if (f.venvSeedPackages) parts.push('--seed');
+                    if (f.venvSystem) parts.push('--system-site-packages');
+                    break;
+
+                case 'python':
+                    parts.push('python', f.pythonAction);
+                    if (f.pythonAction !== 'list' && f.pythonVersion) parts.push(f.pythonVersion);
+                    break;
+
+                case 'tool':
+                    parts.push('tool', f.toolAction);
+                    if (f.toolAction !== 'list' && f.toolName) parts.push(f.toolName);
+                    if (f.toolAction === 'run' && f.toolRunArgs) parts.push(f.toolRunArgs);
+                    break;
+
+                case 'pip-install':
+                    parts.push('pip', 'install');
+                    if (f.packages.length) parts.push(...f.packages);
+                    break;
+
+                case 'pip-compile':
+                    parts.push('pip', 'compile');
+                    if (f.packages.length) parts.push(...f.packages);
+                    if (f.outputFile) parts.push('-o', f.outputFile);
+                    if (f.pythonConstraint) parts.push('--python-version', f.pythonConstraint);
+                    break;
+            }
+
+            // global python
+            if (f.pythonInterp) parts.push('--python', f.pythonInterp);
+            const idx = resolvedIndexUrl.value;
+            if (idx) parts.push('--index', idx);
+            if (f.globalOptions.length) parts.push(...f.globalOptions);
+
+            return parts.join(' ');
+        });
+
+        const highlighted = computed(() => {
+            return fullCommand.value
+                .replace(/^(uv)/, '<span class="t-cmd">$1</span>')
+                .replace(/ (add|remove|sync|lock|run|init|venv|python|tool|pip|compile|install|uninstall|list|find|pin|update)(?= |$)/g,
+                    ' <span class="t-sub">$1</span>')
+                .replace(/ (--[\w=.-]+)(?= |$)/g,
+                    ' <span class="t-flag">$1</span>')
+                .replace(/ ([a-zA-Z_][\w.-]*(?:[>=<!]+[\d.]+)?)(?= |$)/g,
+                    ' <span class="t-pkg">$1</span>');
+        });
+
+        const copyCmd = async () => {
+            try {
+                await navigator.clipboard.writeText(fullCommand.value);
+                copied.value = true;
+                setTimeout(() => copied.value = false, 2000);
+            } catch (e) {
+                alert('复制失败，请手动复制命令');
+            }
+        };
+
+        return {
+            form, pkgInput, copied,
+            commands, depGroups, initTypes, pythonActions, toolActions, globalOpts,
+            pkgPlaceholder, resolvedIndexUrl, onIndexPresetChange,
+            addPkg, removePkg, toggleGlobal, toggleBuildBackend,
+            fullCommand, highlighted, copyCmd,
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
