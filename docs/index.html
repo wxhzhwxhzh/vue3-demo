@@ -3,100 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>侧边栏 + iframe 布局</title>
-    <!-- Vue3 CDN -->
+    <title>后台管理布局</title>
+
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
             height: 100vh;
             overflow: hidden;
             background: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
         /* 主容器 */
         #app {
             display: flex;
             height: 100vh;
+            width: 100vw;
         }
 
-        /* ========== 左侧侧边栏 ========== */
+        /* ========== 侧边栏 ========== */
         .sidebar {
             width: 240px;
-            background: #ffffff;
-            box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-            padding: 24px 0;
+            background: #1e293b; /* 换个深色调更有质感 */
+            color: #fff;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            z-index: 10;
+            flex-shrink: 0;
+            z-index: 100;
         }
 
+        /* 收起状态 */
+        .sidebar.collapsed {
+            width: 64px;
+        }
+
+        /* Logo 区域 */
         .sidebar-logo {
-            padding: 0 24px 20px;
-            font-size: 20px;
-            font-weight: 700;
-            color: #1e293b;
-            border-bottom: 1px solid #f1f5f9;
-            margin-bottom: 12px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-weight: bold;
+            font-size: 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            white-space: nowrap;
         }
 
+        /* 菜单列表 */
         .menu-list {
             list-style: none;
-            padding: 0 12px;
+            padding: 10px;
+            flex: 1;
+            overflow-y: auto;
         }
 
         .menu-item {
-            padding: 12px 16px;
-            margin-bottom: 4px;
-            border-radius: 8px;
-            font-size: 15px;
-            color: #475569;
+            padding: 12px 15px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.25s ease;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            transition: all 0.2s;
             display: flex;
             align-items: center;
         }
 
         .menu-item:hover {
-            background: #f1f5f9;
-            color: #0284c7;
+            background: rgba(255,255,255,0.1);
         }
 
         .menu-item.active {
-            background: linear-gradient(90deg, #0369a1, #0284c7);
-            color: #ffffff;
-            font-weight: 500;
-            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.2);
+            background: #0284c7;
+            color: white;
         }
 
-        /* ========== 右侧 iframe 区域 ========== */
-        .main-box {
+        /* 收起时隐藏文字 */
+        .sidebar.collapsed .menu-item span,
+        .sidebar.collapsed .sidebar-logo span {
+            display: none;
+        }
+
+        /* ========== 右侧主区域 ========== */
+        .main-container {
             flex: 1;
-            background: #ffffff;
-            overflow: hidden;
-            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-width: 0; /* 防止内容撑破flex */
+        }
+
+        /* 顶部导航栏 */
+        .navbar {
+            height: 60px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            z-index: 99;
+        }
+
+        /* 展开/收起按钮 */
+        .toggle-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 4px;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 18px;
+            transition: background 0.2s;
+            margin-right: 15px;
+        }
+
+        .toggle-btn:hover {
+            background: #e2e8f0;
+        }
+
+        /* iframe 容器 */
+        .main-content {
+            flex: 1;
+            background: #fff;
         }
 
         .main-iframe {
             width: 100%;
             height: 100%;
             border: none;
-            outline: none;
+            display: block;
         }
     </style>
 </head>
+
 <body>
 
 <div id="app">
-    <!-- 左侧侧边栏 -->
-    <div class="sidebar">
-        <div class="sidebar-logo">导航面板</div>
+
+    <div class="sidebar" :class="{ collapsed }">
+        <div class="sidebar-logo">
+            <span>🚀 导航面板</span>
+        </div>
+
         <ul class="menu-list">
             <li
                 v-for="(item, idx) in menuList"
@@ -105,55 +163,66 @@
                 :class="{ active: activeIdx === idx }"
                 @click="switchPage(idx, item.url)"
             >
-                {{ item.title }}
+                <strong v-if="collapsed" style="width: 20px; text-align: center;">{{ item.title[0].toUpperCase() }}</strong>
+                <span v-else>{{ item.title }}</span>
             </li>
         </ul>
     </div>
 
-    <!-- 右侧 iframe -->
-    <div class="main-box">
-        <iframe class="main-iframe" :src="iframeUrl" ref="iframe"></iframe>
+    <div class="main-container">
+        <nav class="navbar">
+            <div class="toggle-btn" @click="collapsed = !collapsed" :title="collapsed ? '展开' : '收起'">
+                {{ collapsed ? '☰' : '⬅' }}
+            </div>
+            <div class="nav-title" style="font-weight: 500; color: #334155;">
+                当前：{{ menuList[activeIdx].title }}
+            </div>
+        </nav>
+
+        <div class="main-content">
+            <iframe class="main-iframe" :src="iframeUrl"></iframe>
+        </div>
     </div>
+
 </div>
 
 <script>
-    const { createApp, ref } = Vue
+const { createApp, ref } = Vue
 
-    createApp({
-        setup() {
-            // 菜单配置（自行修改）
-            const menuList = ref([
-               
-                { title: "ssh", url: "./ssh2.html" },
-                { title: "curl", url: "./curl2.html" },
-                { title: "git", url: "./git.html" },
-                { title: "npm", url: "./npm3.html" },
-                { title: "uv", url: "./uv3.html" },
-                { title: "docker", url: "./docker.html" },
-                { title: "ffmpeg", url: "./ffmpeg2.html" },
-                { title: "docker-compose", url: "./docker-compose.html" },
-                { title: "百度", url: "https://www.baidu.com" },
-            ])
+createApp({
+    setup() {
+        const collapsed = ref(false)
 
-            // 当前选中菜单
-            const activeIdx = ref(0)
-            // iframe 地址
-            const iframeUrl = ref(menuList.value[0].url)
+        const menuList = ref([
+            { title: "ssh", url: "./ssh2.html" },
+            { title: "curl", url: "./curl2.html" },
+            { title: "git", url: "./git.html" },
+            { title: "npm", url: "./npm4.html" },
+            { title: "uv", url: "./uv4.html" },
+            { title: "docker", url: "./docker.html" },
+            { title: "ffmpeg", url: "./ffmpeg2.html" },
+            { title: "docker-compose", url: "./docker-compose.html" },
+            { title: "百度", url: "https://www.baidu.com" },
+        ])
 
-            // 切换菜单
-            function switchPage(idx, url) {
-                activeIdx.value = idx
-                iframeUrl.value = url
-            }
+        const activeIdx = ref(0)
+        const iframeUrl = ref(menuList.value[0].url)
 
-            return {
-                menuList,
-                activeIdx,
-                iframeUrl,
-                switchPage
-            }
+        function switchPage(idx, url) {
+            activeIdx.value = idx
+            iframeUrl.value = url
         }
-    }).mount('#app')
+
+        return {
+            collapsed,
+            menuList,
+            activeIdx,
+            iframeUrl,
+            switchPage
+        }
+    }
+}).mount('#app')
 </script>
+
 </body>
 </html>

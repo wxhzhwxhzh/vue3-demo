@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>uv 命令生成器 · 支持临时换源 (uv add)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;padding:20px;color:#222;}
+.wrap{max-width:760px;margin:0 auto;padding:1rem 0;}
+.page-title{font-size:20px;font-weight:500;margin-bottom:4px;}
+.page-desc{font-size:13px;color:#666;margin-bottom:20px;}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-bottom:12px;}
+.label{font-size:12px;color:#666;margin-bottom:6px;margin-top:10px;}
+.label:first-child{margin-top:0;}
+input,select,textarea{width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;background:#fafafa;color:#222;font-family:inherit;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#888;}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.tag{padding:4px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px;cursor:pointer;background:#f5f5f5;color:#555;user-select:none;transition:all 0.15s;}
+.tag:hover{border-color:#888;color:#222;}
+.tag.on{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.output-block{background:#f8f9fa;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-top:12px;font-family:monospace;font-size:13px;line-height:1.7;word-break:break-all;white-space:pre-wrap;color:#222;min-height:56px;}
+.btn-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+button{padding:7px 14px;border:1px solid #ccc;border-radius:6px;background:transparent;color:#222;font-size:13px;cursor:pointer;font-family:inherit;}
+button:hover{background:#f0f0f0;}
+button:active{transform:scale(0.98);}
+.btn-primary{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.btn-primary:hover{background:#B5D4F4;}
+.section-sep{border:none;border-top:1px solid #eee;margin:10px 0;}
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px;}
+.mode-card{border:1px solid #ddd;border-radius:6px;padding:10px;cursor:pointer;background:#fafafa;transition:all 0.15s;}
+.mode-card:hover{border-color:#888;}
+.mode-card.on{background:#E6F1FB;border-color:#185FA5;}
+.mode-card.on .mc-title{color:#0C447C;}
+.mc-title{font-size:13px;font-weight:500;margin-bottom:2px;color:#222;}
+.mc-desc{font-size:11px;color:#888;}
+.hint{font-size:11px;color:#888;margin-top:4px;}
+.inline-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.mirror-section{background:#f9f9f9;border-radius:8px;padding:10px;margin-top:10px;border:1px solid #eee;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+<div class="page-title">⚡ uv 命令生成器</div>
+<div class="page-desc">可视化配置 uv (极速 Python 包管理器) — 依赖添加支持临时换源，其他模式完整可用</div>
+
+<div class="card">
+  <div class="label">操作模式</div>
+  <div class="mode-grid" id="modeGrid"></div>
+</div>
+
+<div id="dynamicArea"></div>
+
+<div class="card">
+  <div class="label">通用选项 (uv 全局参数)</div>
+  <div class="tags">
+    <span class="tag" data-flag="--verbose">--verbose 详细输出</span>
+    <span class="tag" data-flag="--quiet">--quiet 静默模式</span>
+    <span class="tag" data-flag="--no-cache">--no-cache 禁用缓存</span>
+    <span class="tag" data-flag="--color=always">--color=always 彩色输出</span>
+    <span class="tag" data-flag="--native-tls">--native-tls 系统TLS</span>
+    <span class="tag" data-flag="--no-progress">--no-progress 不显示进度条</span>
+  </div>
+</div>
+
+<div class="output-block" id="cmdOut">uv --version</div>
+
+<div class="btn-row">
+  <button class="btn-primary" onclick="copyCmd()">📋 复制命令</button>
+  <button onclick="resetAll()">⟳ 重置所有</button>
+</div>
+</div>
+
+<script>
+// ---------- 模式定义 (保留 source 换源独立模式，但重点增强 add 模式) ----------
+const MODES = [
+  { id: 'add', title: '📦 uv add', desc: '添加依赖包 + 临时换源' },
+  { id: 'remove', title: '❌ uv remove', desc: '移除依赖包' },
+  { id: 'sync', title: '🔄 uv sync', desc: '同步虚拟环境' },
+  { id: 'run', title: '▶️ uv run', desc: '运行脚本/命令' },
+  { id: 'init', title: '✨ uv init', desc: '初始化项目' },
+  { id: 'lock', title: '🔒 uv lock', desc: '锁定依赖版本' },
+  { id: 'source', title: '🪞 换源配置', desc: '永久/临时换源指南' }
+];
+
+let state = { mode: 'add', flags: new Set() };
+// 存储各模式的选项值
+let modeState = {
+  // add (增强: 增加临时换源相关字段)
+  addPackages: '',
+  addDev: false,
+  addOptional: false,
+  addOptionalGroup: '',
+  addExact: false,
+  addEditable: false,
+  addMirrorEnabled: false,      // 是否启用临时换源
+  addMirrorPreset: 'tsinghua',  // tsinghua, aliyun, ustc, official, custom
+  addMirrorCustomUrl: '',
+  // remove
+  removePackages: '',
+  removeDev: false,
+  // sync
+  syncNoDev: false,
+  syncFrozen: false,
+  syncNoInstallProject: false,
+  syncGroup: '',
+  // run
+  runCommand: '',
+  runWith: '',
+  runNoSync: false,
+  // init
+  initName: '',
+  initApp: false,
+  initLib: false,
+  initNoReadme: false,
+  // lock
+  lockUpgrade: false,
+  lockUpgradePackage: '',
+  // source 独立模式
+  sourcePreset: 'tsinghua',
+  sourceCustomUrl: '',
+};
+
+// 预定义源 URL
+const SOURCE_MAP = {
+  tsinghua: 'https://pypi.tuna.tsinghua.edu.cn/simple',
+  aliyun: 'https://mirrors.aliyun.com/pypi/simple/',
+  ustc: 'https://pypi.mirrors.ustc.edu.cn/simple/',
+  official: 'https://pypi.org/simple'
+};
+
+// 默认值模板
+const DEFAULT_MODE_STATE = {
+  add: { addPackages: '', addDev: false, addOptional: false, addOptionalGroup: '', addExact: false, addEditable: false, addMirrorEnabled: false, addMirrorPreset: 'tsinghua', addMirrorCustomUrl: '' },
+  remove: { removePackages: '', removeDev: false },
+  sync: { syncNoDev: false, syncFrozen: false, syncNoInstallProject: false, syncGroup: '' },
+  run: { runCommand: '', runWith: '', runNoSync: false },
+  init: { initName: '', initApp: false, initLib: false, initNoReadme: false },
+  lock: { lockUpgrade: false, lockUpgradePackage: '' },
+  source: { sourcePreset: 'tsinghua', sourceCustomUrl: '' }
+};
+
+// 渲染模式切换按钮
+function renderModes() {
+  const g = document.getElementById('modeGrid');
+  g.innerHTML = MODES.map(m => `
+    <div class="mode-card ${state.mode === m.id ? 'on' : ''}" onclick="setMode('${m.id}')">
+      <div class="mc-title">${m.title}</div>
+      <div class="mc-desc">${m.desc}</div>
+    </div>
+  `).join('');
+}
+
+// ---------- 各模式模板 (重点改造 add 模板，加入临时换源 UI) ----------
+const TEMPLATES = {
+  add: `<div class="card">
+    <div class="label">📦 包名 (多个用空格分隔)</div>
+    <input id="add_packages" placeholder="requests httpx 'django>=4.0'" oninput="updateAddField('packages', this.value); buildCmd();">
+    
+    <div class="label">⚙️ 选项开关</div>
+    <div class="tags" id="addOptTags">
+      <span class="tag" onclick="toggleAddFlag('dev')">--dev (开发依赖)</span>
+      <span class="tag" onclick="toggleAddFlag('optional')">--optional (可选依赖组)</span>
+      <span class="tag" onclick="toggleAddFlag('exact')">--exact (精确版本)</span>
+      <span class="tag" onclick="toggleAddFlag('editable')">--editable (可编辑安装)</span>
+    </div>
+    <div id="addOptionalGroupRow" style="display: none; margin-top: 10px;">
+      <div class="label">可选组名称 (--optional)</div>
+      <input id="add_optional_group" placeholder="dev, test, docs" oninput="updateAddField('optionalGroup', this.value); buildCmd();">
+    </div>
+
+    <!-- 临时换源区域 (新增) -->
+    <div class="mirror-section" style="margin-top: 12px;">
+      <div class="label" style="display: flex; align-items: center; gap: 8px;">
+        <span>🪞 临时换源 (--index-url)</span>
+        <span class="tag" style="background:#eef2ff; padding:2px 8px;" onclick="toggleMirrorEnable()">${modeState.addMirrorEnabled ? '✓ 已启用' : '⚡ 点击启用'}</span>
+      </div>
+      <div id="addMirrorPanel" style="display: ${modeState.addMirrorEnabled ? 'block' : 'none'}; margin-top: 8px;">
+        <div class="tags" id="addMirrorTags">
+          <span class="tag" data-mirror="tsinghua">清华大学</span>
+          <span class="tag" data-mirror="aliyun">阿里云</span>
+          <span class="tag" data-mirror="ustc">中科大</span>
+          <span class="tag" data-mirror="official">官方 (pypi.org)</span>
+          <span class="tag" data-mirror="custom">自定义 URL</span>
+        </div>
+        <div id="addCustomMirrorRow" style="display: none; margin-top: 8px;">
+          <div class="label">自定义镜像地址 (以 /simple 结尾)</div>
+          <input id="add_custom_mirror_url" placeholder="https://mirror.example.com/simple" oninput="updateAddMirrorCustom(this.value); buildCmd();">
+        </div>
+        <div class="hint">✨ 临时使用该镜像源安装本次依赖，不影响全局配置</div>
+      </div>
+    </div>
+    <div class="hint" style="margin-top: 10px;">💡 示例: requests "httpx>0.20" --dev</div>
+  </div>`,
+
+  remove: `<div class="card">
+    <div class="label">❌ 要移除的包名 (空格分隔)</div>
+    <input id="remove_packages" placeholder="requests django" oninput="updateRemoveField('packages', this.value); buildCmd();">
+    <div class="label">⚙️ 选项</div>
+    <div class="tags" id="removeOptTags">
+      <span class="tag" onclick="toggleRemoveFlag('dev')">--dev (从开发依赖移除)</span>
+    </div>
+  </div>`,
+
+  sync: `<div class="card">
+    <div class="label">🔄 同步选项</div>
+    <div class="tags" id="syncOptTags">
+      <span class="tag" onclick="toggleSyncFlag('noDev')">--no-dev (排除开发依赖)</span>
+      <span class="tag" onclick="toggleSyncFlag('frozen')">--frozen (不更新锁文件)</span>
+      <span class="tag" onclick="toggleSyncFlag('noInstallProject')">--no-install-project (不安装当前项目)</span>
+    </div>
+    <div class="label" style="margin-top: 12px;">仅同步特定组 (--group)</div>
+    <input id="sync_group" placeholder="例如: test, lint" oninput="updateSyncField('group', this.value); buildCmd();">
+  </div>`,
+
+  run: `<div class="card">
+    <div class="label">▶️ 要运行的命令 / 脚本</div>
+    <input id="run_command" placeholder="python main.py --verbose" oninput="updateRunField('command', this.value); buildCmd();">
+    <div class="label">🔧 附加选项</div>
+    <div class="tags" id="runOptTags">
+      <span class="tag" onclick="toggleRunFlag('noSync')">--no-sync (运行前不同步)</span>
+    </div>
+    <div class="label">--with 额外依赖 (可选)</div>
+    <input id="run_with" placeholder="pytest, ruff" oninput="updateRunField('with', this.value); buildCmd();">
+  </div>`,
+
+  init: `<div class="card">
+    <div class="label">📁 项目名称 (目录/名称)</div>
+    <input id="init_name" placeholder="my_project" oninput="updateInitField('name', this.value); buildCmd();">
+    <div class="label">⚙️ 项目类型</div>
+    <div class="tags" id="initTypeTags">
+      <span class="tag" onclick="toggleInitFlag('app')">--app (应用程序)</span>
+      <span class="tag" onclick="toggleInitFlag('lib')">--lib (库项目)</span>
+      <span class="tag" onclick="toggleInitFlag('noReadme')">--no-readme (不生成README)</span>
+    </div>
+  </div>`,
+
+  lock: `<div class="card">
+    <div class="label">🔒 锁定选项</div>
+    <div class="tags" id="lockOptTags">
+      <span class="tag" onclick="toggleLockFlag('upgrade')">--upgrade (升级所有依赖)</span>
+    </div>
+    <div class="label" style="margin-top: 10px;">仅升级特定包 (--upgrade-package)</div>
+    <input id="lock_upgrade_pkg" placeholder="requests, django" oninput="updateLockField('upgradePackage', this.value); buildCmd();">
+  </div>`,
+
+  source: `<div class="card">
+    <div class="label">🪞 选择 PyPI 镜像源</div>
+    <div class="tags" id="sourcePresetTags">
+      <span class="tag" data-source="tsinghua">清华大学</span>
+      <span class="tag" data-source="aliyun">阿里云</span>
+      <span class="tag" data-source="ustc">中科大</span>
+      <span class="tag" data-source="official">官方 (pypi.org)</span>
+      <span class="tag" data-source="custom">自定义 URL</span>
+    </div>
+    <div id="sourceCustomRow" style="display: none; margin-top: 12px;">
+      <div class="label">自定义镜像地址 (以 /simple 结尾)</div>
+      <input id="source_custom_url" placeholder="https://mirror.example.com/simple" oninput="updateSourceCustomUrl(this.value); buildCmd();">
+    </div>
+    <div class="hint">✨ 生成永久配置 / 临时换源 / 环境变量等多种方式命令</div>
+  </div>`
+};
+
+// ---------- 字段更新 (原有 + add 镜像) ----------
+function updateAddField(field, value) {
+  if (field === 'packages') modeState.addPackages = value;
+  if (field === 'optionalGroup') modeState.addOptionalGroup = value;
+  buildCmd();
+}
+function updateRemoveField(field, value) {
+  if (field === 'packages') modeState.removePackages = value;
+  buildCmd();
+}
+function updateSyncField(field, value) {
+  if (field === 'group') modeState.syncGroup = value;
+  buildCmd();
+}
+function updateRunField(field, value) {
+  if (field === 'command') modeState.runCommand = value;
+  if (field === 'with') modeState.runWith = value;
+  buildCmd();
+}
+function updateInitField(field, value) {
+  if (field === 'name') modeState.initName = value;
+  buildCmd();
+}
+function updateLockField(field, value) {
+  if (field === 'upgradePackage') modeState.lockUpgradePackage = value;
+  buildCmd();
+}
+function updateSourceCustomUrl(value) {
+  modeState.sourceCustomUrl = value;
+  if (state.mode === 'source') buildCmd();
+}
+function updateAddMirrorCustom(value) {
+  modeState.addMirrorCustomUrl = value;
+  if (modeState.addMirrorPreset === 'custom') buildCmd();
+}
+function toggleMirrorEnable() {
+  modeState.addMirrorEnabled = !modeState.addMirrorEnabled;
+  const panel = document.getElementById('addMirrorPanel');
+  const btn = document.querySelector('.mirror-section .tag');
+  if (panel) panel.style.display = modeState.addMirrorEnabled ? 'block' : 'none';
+  if (btn) btn.innerText = modeState.addMirrorEnabled ? '✓ 已启用' : '⚡ 点击启用';
+  // 重新高亮镜像预置标签
+  if (modeState.addMirrorEnabled) {
+    updateAddMirrorUIHighlights();
+  }
+  buildCmd();
+}
+function setAddMirrorPreset(preset) {
+  modeState.addMirrorPreset = preset;
+  const customRow = document.getElementById('addCustomMirrorRow');
+  if (customRow) customRow.style.display = preset === 'custom' ? 'block' : 'none';
+  updateAddMirrorUIHighlights();
+  buildCmd();
+}
+function updateAddMirrorUIHighlights() {
+  const tags = document.querySelectorAll('#addMirrorTags .tag');
+  tags.forEach(tag => {
+    const val = tag.getAttribute('data-mirror');
+    if (val === modeState.addMirrorPreset) tag.classList.add('on');
+    else tag.classList.remove('on');
+  });
+}
+// 获取 add 模式下当前选择的源 URL
+function getAddMirrorUrl() {
+  if (!modeState.addMirrorEnabled) return null;
+  if (modeState.addMirrorPreset === 'custom') {
+    return modeState.addMirrorCustomUrl.trim();
+  } else {
+    return SOURCE_MAP[modeState.addMirrorPreset] || SOURCE_MAP.tsinghua;
+  }
+}
+
+// ---------- 切换标志函数 (原有 + add mirror 事件绑定) ----------
+function toggleAddFlag(flag) {
+  if (flag === 'dev') { modeState.addDev = !modeState.addDev; }
+  else if (flag === 'optional') { modeState.addOptional = !modeState.addOptional; }
+  else if (flag === 'exact') { modeState.addExact = !modeState.addExact; }
+  else if (flag === 'editable') { modeState.addEditable = !modeState.addEditable; }
+  const idx = flag==='dev'?0:flag==='optional'?1:flag==='exact'?2:3;
+  const el = document.querySelectorAll('#addOptTags .tag')[idx];
+  if (el) el.classList.toggle('on');
+  const optionalRow = document.getElementById('addOptionalGroupRow');
+  if (optionalRow) optionalRow.style.display = modeState.addOptional ? 'block' : 'none';
+  buildCmd();
+}
+function toggleRemoveFlag(flag) {
+  if (flag === 'dev') { modeState.removeDev = !modeState.removeDev; }
+  const el = document.querySelector('#removeOptTags .tag');
+  if (el) el.classList.toggle('on');
+  buildCmd();
+}
+function toggleSyncFlag(flag) {
+  if (flag === 'noDev') modeState.syncNoDev = !modeState.syncNoDev;
+  else if (flag === 'frozen') modeState.syncFrozen = !modeState.syncFrozen;
+  else if (flag === 'noInstallProject') modeState.syncNoInstallProject = !modeState.syncNoInstallProject;
+  const idx = flag==='noDev'?0:flag==='frozen'?1:2;
+  const el = document.querySelectorAll('#syncOptTags .tag')[idx];
+  if (el) el.classList.toggle('on');
+  buildCmd();
+}
+function toggleRunFlag(flag) {
+  if (flag === 'noSync') modeState.runNoSync = !modeState.runNoSync;
+  const el = document.querySelector('#runOptTags .tag');
+  if (el) el.classList.toggle('on');
+  buildCmd();
+}
+function toggleInitFlag(flag) {
+  if (flag === 'app') { modeState.initApp = !modeState.initApp; if (modeState.initApp) modeState.initLib = false; }
+  else if (flag === 'lib') { modeState.initLib = !modeState.initLib; if (modeState.initLib) modeState.initApp = false; }
+  else if (flag === 'noReadme') modeState.initNoReadme = !modeState.initNoReadme;
+  const tags = document.querySelectorAll('#initTypeTags .tag');
+  if (tags[0]) tags[0].classList.toggle('on', modeState.initApp);
+  if (tags[1]) tags[1].classList.toggle('on', modeState.initLib);
+  if (tags[2]) tags[2].classList.toggle('on', modeState.initNoReadme);
+  buildCmd();
+}
+function toggleLockFlag(flag) {
+  if (flag === 'upgrade') modeState.lockUpgrade = !modeState.lockUpgrade;
+  const el = document.querySelector('#lockOptTags .tag');
+  if (el) el.classList.toggle('on');
+  buildCmd();
+}
+
+// 独立 source 模式函数
+function setSourcePreset(preset) {
+  modeState.sourcePreset = preset;
+  const tags = document.querySelectorAll('#sourcePresetTags .tag');
+  tags.forEach(tag => {
+    const val = tag.getAttribute('data-source');
+    if (val === preset) tag.classList.add('on');
+    else tag.classList.remove('on');
+  });
+  const customRow = document.getElementById('sourceCustomRow');
+  if (customRow) customRow.style.display = preset === 'custom' ? 'block' : 'none';
+  buildCmd();
+}
+
+// 获取通用 flags
+function getGlobalFlags() {
+  const flags = [];
+  document.querySelectorAll('.tag[data-flag].on').forEach(t => {
+    flags.push(t.dataset.flag);
+  });
+  return flags;
+}
+
+// ---------- 核心命令构建器 (add 模式整合临时换源) ----------
+function buildCmd() {
+  const mode = state.mode;
+  const globalFlags = getGlobalFlags();
+  let cmd = 'uv';
+  if (globalFlags.length && mode !== 'source') cmd += ' ' + globalFlags.join(' ');
+  
+  if (mode === 'add') {
+    let sub = ' add';
+    let opts = [];
+    if (modeState.addDev) opts.push('--dev');
+    if (modeState.addOptional && modeState.addOptionalGroup.trim()) opts.push(`--optional ${modeState.addOptionalGroup.trim()}`);
+    else if (modeState.addOptional) opts.push('--optional');
+    if (modeState.addExact) opts.push('--exact');
+    if (modeState.addEditable) opts.push('--editable');
+    
+    // 临时换源参数
+    const mirrorUrl = getAddMirrorUrl();
+    if (mirrorUrl && mirrorUrl !== '') {
+      opts.push(`--index-url "${mirrorUrl}"`);
+    }
+    
+    let packages = modeState.addPackages.trim();
+    if (packages === '') packages = '[包名]';
+    cmd += sub + (opts.length ? ' ' + opts.join(' ') : '') + ' ' + packages;
+  } 
+  else if (mode === 'remove') {
+    let sub = ' remove';
+    let opts = [];
+    if (modeState.removeDev) opts.push('--dev');
+    let packages = modeState.removePackages.trim();
+    if (packages === '') packages = '[包名]';
+    cmd += sub + (opts.length ? ' ' + opts.join(' ') : '') + ' ' + packages;
+  }
+  else if (mode === 'sync') {
+    let sub = ' sync';
+    let opts = [];
+    if (modeState.syncNoDev) opts.push('--no-dev');
+    if (modeState.syncFrozen) opts.push('--frozen');
+    if (modeState.syncNoInstallProject) opts.push('--no-install-project');
+    if (modeState.syncGroup.trim()) opts.push(`--group ${modeState.syncGroup.trim()}`);
+    cmd += sub + (opts.length ? ' ' + opts.join(' ') : '');
+  }
+  else if (mode === 'run') {
+    let sub = ' run';
+    let opts = [];
+    if (modeState.runNoSync) opts.push('--no-sync');
+    if (modeState.runWith.trim()) opts.push(`--with "${modeState.runWith.trim()}"`);
+    let commandPart = modeState.runCommand.trim();
+    if (commandPart === '') commandPart = '[命令]';
+    cmd += sub + (opts.length ? ' ' + opts.join(' ') : '') + ' ' + commandPart;
+  }
+  else if (mode === 'init') {
+    let sub = ' init';
+    let opts = [];
+    if (modeState.initApp) opts.push('--app');
+    if (modeState.initLib) opts.push('--lib');
+    if (modeState.initNoReadme) opts.push('--no-readme');
+    let namePart = modeState.initName.trim();
+    if (namePart !== '') opts.push(namePart);
+    cmd += sub + (opts.length ? ' ' + opts.join(' ') : '');
+    if (namePart === '' && !opts.length) cmd += ' [项目名]';
+  }
+  else if (mode === 'lock') {
+    let sub = ' lock';
+    let opts = [];
+    if (modeState.lockUpgrade) opts.push('--upgrade');
+    if (modeState.lockUpgradePackage.trim()) {
+      const pkgs = modeState.lockUpgradePackage.trim().split(/\s+/);
+      pkgs.forEach(p => { if(p) opts.push(`--upgrade-package ${p}`); });
+    }
+    cmd += sub + (opts.length ? ' ' + opts.join(' ') : '');
+  }
+  else if (mode === 'source') {
+    const sourceUrl = modeState.sourcePreset === 'custom' ? modeState.sourceCustomUrl : SOURCE_MAP[modeState.sourcePreset];
+    let outputLines = [];
+    if (!sourceUrl) {
+      outputLines.push('# 请选择一个镜像源或输入自定义URL');
+    } else {
+      outputLines.push(`# 1️⃣ 永久配置 (uv 全局设置)`);
+      outputLines.push(`uv config set pypi-index-url "${sourceUrl}"`);
+      outputLines.push(``);
+      outputLines.push(`# 2️⃣ 临时使用 (仅当前命令生效，例如安装依赖时换源)`);
+      outputLines.push(`uv add --index-url "${sourceUrl}" [包名]`);
+      outputLines.push(`# 或全局参数方式：uv --index-url "${sourceUrl}" add requests`);
+      outputLines.push(``);
+      outputLines.push(`# 3️⃣ 环境变量方式 (适合 CI/临时覆盖)`);
+      outputLines.push(`export UV_INDEX_URL="${sourceUrl}"`);
+      outputLines.push(`# 然后直接运行 uv 命令即可`);
+    }
+    const outEl = document.getElementById('cmdOut');
+    if (outEl) outEl.textContent = outputLines.join('\n');
+    return;
+  }
+  
+  const outEl = document.getElementById('cmdOut');
+  if (outEl) outEl.textContent = cmd || 'uv --help';
+}
+
+// ---------- 切换模式 (重置模式专属状态，保留 add 镜像增强) ----------
+function setMode(modeId) {
+  state.mode = modeId;
+  const defaults = DEFAULT_MODE_STATE[modeId] || {};
+  for (let key in defaults) {
+    if (defaults.hasOwnProperty(key)) {
+      modeState[key] = defaults[key];
+    }
+  }
+  // 精细重置
+  if (modeId === 'add') {
+    modeState.addPackages = '';
+    modeState.addDev = false;
+    modeState.addOptional = false;
+    modeState.addOptionalGroup = '';
+    modeState.addExact = false;
+    modeState.addEditable = false;
+    modeState.addMirrorEnabled = false;
+    modeState.addMirrorPreset = 'tsinghua';
+    modeState.addMirrorCustomUrl = '';
+  }
+  if (modeId === 'remove') {
+    modeState.removePackages = '';
+    modeState.removeDev = false;
+  }
+  if (modeId === 'sync') {
+    modeState.syncNoDev = false;
+    modeState.syncFrozen = false;
+    modeState.syncNoInstallProject = false;
+    modeState.syncGroup = '';
+  }
+  if (modeId === 'run') {
+    modeState.runCommand = '';
+    modeState.runWith = '';
+    modeState.runNoSync = false;
+  }
+  if (modeId === 'init') {
+    modeState.initName = '';
+    modeState.initApp = false;
+    modeState.initLib = false;
+    modeState.initNoReadme = false;
+  }
+  if (modeId === 'lock') {
+    modeState.lockUpgrade = false;
+    modeState.lockUpgradePackage = '';
+  }
+  if (modeId === 'source') {
+    modeState.sourcePreset = 'tsinghua';
+    modeState.sourceCustomUrl = '';
+  }
+  
+  renderModes();
+  const dynamicDiv = document.getElementById('dynamicArea');
+  dynamicDiv.innerHTML = TEMPLATES[modeId] || '<div class="card">请选择模式</div>';
+  
+  // 绑定各模式UI状态 (重点 add 镜像交互)
+  if (modeId === 'add') {
+    const optRow = document.getElementById('addOptionalGroupRow');
+    if (optRow) optRow.style.display = modeState.addOptional ? 'block' : 'none';
+    const tags = document.querySelectorAll('#addOptTags .tag');
+    if (tags[0]) tags[0].classList.toggle('on', modeState.addDev);
+    if (tags[1]) tags[1].classList.toggle('on', modeState.addOptional);
+    if (tags[2]) tags[2].classList.toggle('on', modeState.addExact);
+    if (tags[3]) tags[3].classList.toggle('on', modeState.addEditable);
+    const groupInput = document.getElementById('add_optional_group');
+    if (groupInput) groupInput.value = modeState.addOptionalGroup;
+    const pkgInput = document.getElementById('add_packages');
+    if (pkgInput) pkgInput.value = modeState.addPackages;
+    
+    // 镜像面板初始化
+    const panel = document.getElementById('addMirrorPanel');
+    const btnText = document.querySelector('.mirror-section .tag');
+    if (panel) panel.style.display = modeState.addMirrorEnabled ? 'block' : 'none';
+    if (btnText) btnText.innerText = modeState.addMirrorEnabled ? '✓ 已启用' : '⚡ 点击启用';
+    const mirrorTags = document.querySelectorAll('#addMirrorTags .tag');
+    mirrorTags.forEach(tag => {
+      tag.removeEventListener('click', mirrorTagClickHandler);
+      tag.addEventListener('click', mirrorTagClickHandler);
+    });
+    const customRow = document.getElementById('addCustomMirrorRow');
+    if (customRow) customRow.style.display = modeState.addMirrorPreset === 'custom' ? 'block' : 'none';
+    const customInput = document.getElementById('add_custom_mirror_url');
+    if (customInput) customInput.value = modeState.addMirrorCustomUrl;
+    updateAddMirrorUIHighlights();
+  }
+  if (modeId === 'remove') {
+    const tag = document.querySelector('#removeOptTags .tag');
+    if (tag) tag.classList.toggle('on', modeState.removeDev);
+    const inp = document.getElementById('remove_packages');
+    if (inp) inp.value = modeState.removePackages;
+  }
+  if (modeId === 'sync') {
+    const tags = document.querySelectorAll('#syncOptTags .tag');
+    if (tags[0]) tags[0].classList.toggle('on', modeState.syncNoDev);
+    if (tags[1]) tags[1].classList.toggle('on', modeState.syncFrozen);
+    if (tags[2]) tags[2].classList.toggle('on', modeState.syncNoInstallProject);
+    const groupInp = document.getElementById('sync_group');
+    if (groupInp) groupInp.value = modeState.syncGroup;
+  }
+  if (modeId === 'run') {
+    const tag = document.querySelector('#runOptTags .tag');
+    if (tag) tag.classList.toggle('on', modeState.runNoSync);
+    const cmdInp = document.getElementById('run_command');
+    if (cmdInp) cmdInp.value = modeState.runCommand;
+    const withInp = document.getElementById('run_with');
+    if (withInp) withInp.value = modeState.runWith;
+  }
+  if (modeId === 'init') {
+    const tags = document.querySelectorAll('#initTypeTags .tag');
+    if (tags[0]) tags[0].classList.toggle('on', modeState.initApp);
+    if (tags[1]) tags[1].classList.toggle('on', modeState.initLib);
+    if (tags[2]) tags[2].classList.toggle('on', modeState.initNoReadme);
+    const nameInp = document.getElementById('init_name');
+    if (nameInp) nameInp.value = modeState.initName;
+  }
+  if (modeId === 'lock') {
+    const tag = document.querySelector('#lockOptTags .tag');
+    if (tag) tag.classList.toggle('on', modeState.lockUpgrade);
+    const pkgInp = document.getElementById('lock_upgrade_pkg');
+    if (pkgInp) pkgInp.value = modeState.lockUpgradePackage;
+  }
+  if (modeId === 'source') {
+    const presetTags = document.querySelectorAll('#sourcePresetTags .tag');
+    presetTags.forEach(tag => {
+      tag.removeEventListener('click', sourcePresetHandler);
+      tag.addEventListener('click', sourcePresetHandler);
+    });
+    const customRowDiv = document.getElementById('sourceCustomRow');
+    if (customRowDiv) customRowDiv.style.display = modeState.sourcePreset === 'custom' ? 'block' : 'none';
+    const customUrlInput = document.getElementById('source_custom_url');
+    if (customUrlInput) customUrlInput.value = modeState.sourceCustomUrl;
+    // 高亮
+    presetTags.forEach(tag => {
+      const val = tag.getAttribute('data-source');
+      if (val === modeState.sourcePreset) tag.classList.add('on');
+      else tag.classList.remove('on');
+    });
+  }
+  buildCmd();
+}
+
+function mirrorTagClickHandler(e) {
+  const target = e.currentTarget;
+  const mirrorVal = target.getAttribute('data-mirror');
+  if (mirrorVal) setAddMirrorPreset(mirrorVal);
+}
+function sourcePresetHandler(e) {
+  const target = e.currentTarget;
+  const sourceVal = target.getAttribute('data-source');
+  if (sourceVal) setSourcePreset(sourceVal);
+}
+
+function resetAll() {
+  document.querySelectorAll('.tag[data-flag].on').forEach(t => t.classList.remove('on'));
+  // 重置所有模式状态
+  for (let key in DEFAULT_MODE_STATE.add) modeState[key] = DEFAULT_MODE_STATE.add[key];
+  modeState.addPackages = '';
+  modeState.addDev = false;
+  modeState.addOptional = false;
+  modeState.addOptionalGroup = '';
+  modeState.addExact = false;
+  modeState.addEditable = false;
+  modeState.addMirrorEnabled = false;
+  modeState.addMirrorPreset = 'tsinghua';
+  modeState.addMirrorCustomUrl = '';
+  modeState.removePackages = '';
+  modeState.removeDev = false;
+  modeState.syncNoDev = false;
+  modeState.syncFrozen = false;
+  modeState.syncNoInstallProject = false;
+  modeState.syncGroup = '';
+  modeState.runCommand = '';
+  modeState.runWith = '';
+  modeState.runNoSync = false;
+  modeState.initName = '';
+  modeState.initApp = false;
+  modeState.initLib = false;
+  modeState.initNoReadme = false;
+  modeState.lockUpgrade = false;
+  modeState.lockUpgradePackage = '';
+  modeState.sourcePreset = 'tsinghua';
+  modeState.sourceCustomUrl = '';
+  setMode('add');
+}
+
+async function copyCmd() {
+  const txt = document.getElementById('cmdOut').innerText;
+  if (!txt) return;
+  try {
+    await navigator.clipboard.writeText(txt);
+    const el = document.getElementById('cmdOut');
+    const originalBg = el.style.background;
+    el.style.background = '#d4edda';
+    setTimeout(() => { el.style.background = originalBg; }, 600);
+  } catch(e) { alert('手动复制'); }
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.classList && e.target.classList.contains('tag') && e.target.hasAttribute('data-flag')) {
+    e.target.classList.toggle('on');
+    buildCmd();
+  }
+});
+
+setMode('add');
+</script>
+</body>
+</html>

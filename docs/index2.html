@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>可折叠侧边栏 + iframe 内容布局</title>
+    <!-- Vue3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", "Roboto", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: #f1f5f9;
+        }
+
+        /* 主应用容器 */
+        #app {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* ========== 侧边栏核心样式 ========== */
+        .sidebar {
+            width: 260px;
+            background: #ffffff;
+            box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            overflow-x: hidden;
+            flex-shrink: 0;
+            z-index: 20;
+            position: relative;
+        }
+
+        /* 折叠状态：宽度收缩至 72px（适合显示图标） */
+        .sidebar.collapsed {
+            width: 72px;
+        }
+
+        /* ========= 侧边栏头部区域 (Logo + 折叠按钮) ========= */
+        .sidebar-header {
+            padding: 20px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #eef2ff;
+            margin-bottom: 20px;
+            transition: padding 0.2s ease;
+            white-space: nowrap;
+        }
+
+        /* 完整品牌文字 */
+        .logo-full {
+            font-size: 1.3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #0f2b3d, #1e4a6e);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: 1px;
+            transition: opacity 0.2s ease;
+        }
+
+        /* 折叠时显示的小标志 (一个简洁图标) */
+        .logo-compact {
+            font-size: 1.6rem;
+            font-weight: 500;
+            color: #1e4a6e;
+            display: none;
+            line-height: 1;
+        }
+
+        /* 折叠按钮样式（优雅的圆形按钮） */
+        .collapse-btn {
+            background: #f8fafc;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: #1e293b;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        }
+
+        .collapse-btn:hover {
+            background: #e6edf4;
+            color: #0284c7;
+            transform: scale(0.96);
+        }
+
+        /* 折叠状态下头部区域调整 */
+        .sidebar.collapsed .sidebar-header {
+            padding: 20px 8px;
+            justify-content: center;
+        }
+
+        .sidebar.collapsed .logo-full {
+            display: none;
+        }
+
+        .sidebar.collapsed .logo-compact {
+            display: inline-block;
+        }
+
+        .sidebar.collapsed .collapse-btn {
+            margin-left: 0;
+        }
+
+        /* ========= 菜单列表样式 ========= */
+        .menu-list {
+            list-style: none;
+            padding: 0 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 菜单项图标样式 */
+        .menu-icon {
+            font-size: 1.35rem;
+            flex-shrink: 0;
+            width: 28px;
+            text-align: center;
+            transition: transform 0.1s ease;
+        }
+
+        /* 菜单文本 */
+        .menu-text {
+            flex: 1;
+            transition: opacity 0.2s ease, width 0.2s;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* hover 效果 */
+        .menu-item:hover {
+            background: #f1f5f9;
+            color: #0c4a6e;
+        }
+
+        .menu-item:hover .menu-icon {
+            transform: scale(1.02);
+        }
+
+        /* 激活菜单项样式 (深邃渐变) */
+        .menu-item.active {
+            background: linear-gradient(105deg, #eef2ff 0%, #ffffff 100%);
+            color: #0369a1;
+            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.08);
+            border-left: 3px solid #0284c7;
+            border-radius: 14px 10px 10px 14px;
+        }
+
+        .menu-item.active .menu-icon {
+            color: #0284c7;
+            font-weight: 500;
+        }
+
+        /* ========= 折叠状态下的菜单样式 ========= */
+        .sidebar.collapsed .menu-list {
+            padding: 0 8px;
+        }
+
+        .sidebar.collapsed .menu-item {
+            padding: 12px 0;
+            justify-content: center;
+            gap: 0;
+        }
+
+        /* 折叠时隐藏文字，仅保留图标居中 */
+        .sidebar.collapsed .menu-text {
+            display: none;
+        }
+
+        .sidebar.collapsed .menu-icon {
+            font-size: 1.55rem;
+            width: auto;
+            margin: 0;
+        }
+
+        /* 折叠时菜单项悬浮显示完整名称（title 提示）, 并且让激活背景依旧舒适 */
+        .sidebar.collapsed .menu-item {
+            justify-content: center;
+        }
+
+        /* 保证折叠后菜单项依然有足够的可点击区域 */
+        .sidebar.collapsed .menu-item.active {
+            border-left: none;
+            background: linear-gradient(135deg, #eef2ff, #fef9e3);
+            justify-content: center;
+        }
+
+        /* ========= 右侧内容区域 ========= */
+        .main-box {
+            flex: 1;
+            background: #fefefe;
+            overflow: hidden;
+            position: relative;
+            box-shadow: -2px 0 12px rgba(0, 0, 0, 0.02);
+            transition: all 0.2s;
+        }
+
+        .main-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            background: #fff;
+            display: block;
+        }
+
+        /* 优雅滚动条 (侧边栏内部如果有滚动需求) */
+        .menu-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .menu-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .menu-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* 响应式微调: 小屏幕下折叠按钮更好操作 */
+        @media (max-width: 640px) {
+            .sidebar {
+                position: absolute;
+                height: 100%;
+                z-index: 30;
+                transform: translateX(0);
+                transition: transform 0.25s ease, width 0.2s;
+            }
+            /* 移动端折叠时完全隐藏，需要展开按钮辅助？ 但桌面优先，不过保持基本体验 */
+            .sidebar.collapsed {
+                transform: translateX(-100%);
+                width: 0;
+            }
+            .sidebar.collapsed + .main-box {
+                margin-left: 0;
+            }
+            /* 简单处理：移动端折叠时完全隐藏侧边栏，通过外部菜单按钮唤出——非核心需求，忽略完美适配，保留桌面主要特性 */
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- 左侧侧边栏：动态绑定折叠类 -->
+    <div class="sidebar" :class="{ collapsed: isCollapsed }">
+        <!-- 头部区域：包含logo与折叠触发按钮 -->
+        <div class="sidebar-header">
+            <span class="logo-full">📘 导航面板</span>
+            <span class="logo-compact">⚙️</span>
+            <button class="collapse-btn" @click="toggleSidebar" :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'">
+                {{ isCollapsed ? '☰' : '◀' }}
+            </button>
+        </div>
+
+        <!-- 动态菜单列表，每个菜单项带独立图标和文字 -->
+        <ul class="menu-list">
+            <li 
+                v-for="(item, idx) in menuList" 
+                :key="idx"
+                class="menu-item"
+                :class="{ active: activeIdx === idx }"
+                @click="switchPage(idx, item.url)"
+                :title="isCollapsed ? item.title : ''"
+            >
+                <span class="menu-icon">{{ item.icon }}</span>
+                <span class="menu-text">{{ item.title }}</span>
+            </li>
+        </ul>
+    </div>
+
+    <!-- 右侧 iframe 内容区域 -->
+    <div class="main-box">
+        <iframe class="main-iframe" :src="iframeUrl" title="内容预览" ref="iframeFrame"></iframe>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref } = Vue;
+
+    createApp({
+        setup() {
+            // ---------- 菜单数据：扩充图标字段（增强可折叠时的可读性）----------
+            // 原始数据基于标题映射到生动图标（emoji / 字符图标）
+            const rawMenus = [
+                { title: "SSH 远程连接", url: "./ssh2.html" },
+                { title: "cURL 网络工具", url: "./curl2.html" },
+                { title: "Git 版本控制", url: "./git.html" },
+                { title: "npm 包管理", url: "./npm3.html" },
+                { title: "uv 工具链", url: "./uv3.html" },
+                { title: "Docker 容器", url: "./docker.html" },
+                { title: "FFmpeg 音视频", url: "./ffmpeg2.html" },
+                { title: "Docker Compose", url: "./docker-compose.html" },
+                { title: "百度搜索", url: "https://www.baidu.com" },
+            ];
+
+            // 优雅图标映射 (根据标题含义分配直观图标，折叠时只显示图标依然可辨识)
+            const getIconByTitle = (title) => {
+                if (title.includes("SSH")) return "🔒";
+                if (title.includes("cURL")) return "🌐";
+                if (title.includes("Git")) return "🐙";
+                if (title.includes("npm")) return "📦";
+                if (title.includes("uv")) return "✨";
+                if (title.includes("Docker") && !title.includes("Compose")) return "🐳";
+                if (title.includes("FFmpeg")) return "🎬";
+                if (title.includes("Compose")) return "⚙️";
+                if (title.includes("百度")) return "🔍";
+                return "📄";
+            };
+
+            // 生成最终菜单列表 (包含图标)
+            const menuList = ref(
+                rawMenus.map(item => ({
+                    ...item,
+                    icon: getIconByTitle(item.title)
+                }))
+            );
+
+            // 当前激活菜单索引 (默认第一个)
+            const activeIdx = ref(0);
+            // iframe 当前地址
+            const iframeUrl = ref(menuList.value[0].url);
+
+            // ---------- 侧边栏折叠/展开状态 ----------
+            const isCollapsed = ref(false);   // false = 展开, true = 折叠
+
+            // 切换折叠状态的方法
+            const toggleSidebar = () => {
+                isCollapsed.value = !isCollapsed.value;
+                // 可添加一些额外效果（可选），比如保存用户偏好到 localStorage
+                try {
+                    localStorage.setItem('sidebarCollapsed', isCollapsed.value);
+                } catch(e) { /* 静默失败 */ }
+            };
+
+            // 切换页面（菜单点击逻辑）
+            function switchPage(idx, url) {
+                activeIdx.value = idx;
+                iframeUrl.value = url;
+                // 可选: 在小屏幕设备上点击菜单后自动折叠侧边栏 (提升移动体验)
+                // 但为了避免干扰桌面习惯，判断视口宽度，<768时折叠可自动收回
+                if (window.innerWidth < 768 && !isCollapsed.value) {
+                    // 移动端可自动收起侧边栏，但不是必须，但更友好
+                    isCollapsed.value = true;
+                }
+            }
+
+            // ---------- 读取本地存储的侧边栏偏好 (用户体验增强) ----------
+            const loadCollapsedPreference = () => {
+                try {
+                    const saved = localStorage.getItem('sidebarCollapsed');
+                    if (saved !== null) {
+                        isCollapsed.value = saved === 'true';
+                    }
+                } catch(e) {}
+                // 也可以针对大屏幕默认展开；若窗口过窄建议默认折叠？默认展开更符合大多数
+                if (window.innerWidth < 640 && !isCollapsed.value) {
+                    // 超小屏幕自动折叠让出更多内容区域 (可选)
+                    // isCollapsed.value = true; 按需启用，避免初次显示奇怪，这里不做强制
+                }
+            };
+            loadCollapsedPreference();
+
+            // 监听窗口resize (超宽屏不影响，只是做个体验补丁)
+            window.addEventListener('resize', () => {
+                // 不做自动强制，保证用户选择优先，但可以防止异常显示
+            });
+
+            return {
+                menuList,
+                activeIdx,
+                iframeUrl,
+                isCollapsed,
+                toggleSidebar,
+                switchPage
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

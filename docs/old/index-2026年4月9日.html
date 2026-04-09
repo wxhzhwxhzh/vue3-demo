@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>侧边栏 + iframe 布局</title>
+    <!-- Vue3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: #f8fafc;
+        }
+
+        /* 主容器 */
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* ========== 左侧侧边栏 ========== */
+        .sidebar {
+            width: 240px;
+            background: #ffffff;
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+            padding: 24px 0;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+        }
+
+        .sidebar-logo {
+            padding: 0 24px 20px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+            border-bottom: 1px solid #f1f5f9;
+            margin-bottom: 12px;
+        }
+
+        .menu-list {
+            list-style: none;
+            padding: 0 12px;
+        }
+
+        .menu-item {
+            padding: 12px 16px;
+            margin-bottom: 4px;
+            border-radius: 8px;
+            font-size: 15px;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .menu-item:hover {
+            background: #f1f5f9;
+            color: #0284c7;
+        }
+
+        .menu-item.active {
+            background: linear-gradient(90deg, #0369a1, #0284c7);
+            color: #ffffff;
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.2);
+        }
+
+        /* ========== 右侧 iframe 区域 ========== */
+        .main-box {
+            flex: 1;
+            background: #ffffff;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .main-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- 左侧侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-logo">导航面板</div>
+        <ul class="menu-list">
+            <li
+                v-for="(item, idx) in menuList"
+                :key="idx"
+                class="menu-item"
+                :class="{ active: activeIdx === idx }"
+                @click="switchPage(idx, item.url)"
+            >
+                {{ item.title }}
+            </li>
+        </ul>
+    </div>
+
+    <!-- 右侧 iframe -->
+    <div class="main-box">
+        <iframe class="main-iframe" :src="iframeUrl" ref="iframe"></iframe>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref } = Vue
+
+    createApp({
+        setup() {
+            // 菜单配置（自行修改）
+            const menuList = ref([
+               
+                { title: "ssh", url: "./ssh2.html" },
+                { title: "curl", url: "./curl2.html" },
+                { title: "git", url: "./git.html" },
+                { title: "npm", url: "./npm3.html" },
+                { title: "uv", url: "./uv3.html" },
+                { title: "docker", url: "./docker.html" },
+                { title: "ffmpeg", url: "./ffmpeg2.html" },
+                { title: "docker-compose", url: "./docker-compose.html" },
+                { title: "百度", url: "https://www.baidu.com" },
+            ])
+
+            // 当前选中菜单
+            const activeIdx = ref(0)
+            // iframe 地址
+            const iframeUrl = ref(menuList.value[0].url)
+
+            // 切换菜单
+            function switchPage(idx, url) {
+                activeIdx.value = idx
+                iframeUrl.value = url
+            }
+
+            return {
+                menuList,
+                activeIdx,
+                iframeUrl,
+                switchPage
+            }
+        }
+    }).mount('#app')
+</script>
+</body>
+</html>

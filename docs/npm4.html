@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>npm 命令生成器 · Node.js 包管理器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;padding:20px;color:#222;}
+.wrap{max-width:760px;margin:0 auto;padding:1rem 0;}
+.page-title{font-size:20px;font-weight:500;margin-bottom:4px;}
+.page-desc{font-size:13px;color:#666;margin-bottom:20px;}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-bottom:12px;}
+.label{font-size:12px;color:#666;margin-bottom:6px;margin-top:10px;}
+.label:first-child{margin-top:0;}
+input,select,textarea{width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;background:#fafafa;color:#222;font-family:inherit;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#888;}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.tag{padding:4px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px;cursor:pointer;background:#f5f5f5;color:#555;user-select:none;transition:all 0.15s;}
+.tag:hover{border-color:#888;color:#222;}
+.tag.on{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.output-block{background:#f8f9fa;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-top:12px;font-family:monospace;font-size:13px;line-height:1.7;word-break:break-all;white-space:pre-wrap;color:#222;min-height:56px;}
+.btn-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+button{padding:7px 14px;border:1px solid #ccc;border-radius:6px;background:transparent;color:#222;font-size:13px;cursor:pointer;font-family:inherit;}
+button:hover{background:#f0f0f0;}
+button:active{transform:scale(0.98);}
+.btn-primary{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.btn-primary:hover{background:#B5D4F4;}
+.section-sep{border:none;border-top:1px solid #eee;margin:10px 0;}
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px;}
+.mode-card{border:1px solid #ddd;border-radius:6px;padding:10px;cursor:pointer;background:#fafafa;transition:all 0.15s;}
+.mode-card:hover{border-color:#888;}
+.mode-card.on{background:#E6F1FB;border-color:#185FA5;}
+.mode-card.on .mc-title{color:#0C447C;}
+.mc-title{font-size:13px;font-weight:500;margin-bottom:2px;color:#222;}
+.mc-desc{font-size:11px;color:#888;}
+.hint{font-size:11px;color:#888;margin-top:4px;}
+.mirror-section{background:#f9f9f9;border-radius:8px;padding:10px;margin-top:12px;border:1px solid #eee;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+<div class="page-title">📦 npm 命令生成器</div>
+<div class="page-desc">可视化配置 npm 包管理命令 — 安装、卸载、更新、初始化、运行脚本 + 临时换源</div>
+
+<div class="card">
+  <div class="label">操作模式</div>
+  <div class="mode-grid" id="modeGrid"></div>
+</div>
+
+<div id="dynamicArea"></div>
+
+<div class="card">
+  <div class="label">通用选项 (npm 全局参数)</div>
+  <div class="tags">
+    <span class="tag" data-flag="--verbose">--verbose 详细输出</span>
+    <span class="tag" data-flag="--silent">--silent 静默模式</span>
+    <span class="tag" data-flag="--no-audit">--no-audit 跳过审计</span>
+    <span class="tag" data-flag="--no-fund">--no-fund 不显示赞助信息</span>
+    <span class="tag" data-flag="--save-exact">--save-exact 精确版本</span>
+    <span class="tag" data-flag="--legacy-peer-deps">--legacy-peer-deps 旧版peer依赖</span>
+  </div>
+</div>
+
+<div class="output-block" id="cmdOut">npm --version</div>
+
+<div class="btn-row">
+  <button class="btn-primary" onclick="copyCmd()">📋 复制命令</button>
+  <button onclick="resetAll()">⟳ 重置所有</button>
+</div>
+</div>
+
+<script>
+// ---------- 模式定义 ----------
+const MODES = [
+  { id: 'install', title: '📦 npm install', desc: '安装依赖 + 临时换源' },
+  { id: 'uninstall', title: '❌ npm uninstall', desc: '卸载依赖包' },
+  { id: 'update', title: '🔄 npm update', desc: '更新依赖包' },
+  { id: 'init', title: '✨ npm init', desc: '初始化 package.json' },
+  { id: 'run', title: '▶️ npm run', desc: '运行脚本命令' },
+  { id: 'source', title: '🪞 换源配置', desc: '永久/临时换源指南' }
+];
+
+let state = { mode: 'install', flags: new Set() };
+// 存储各模式的选项值
+let modeState = {
+  // install
+  installPackages: '',
+  installSaveDev: false,
+  installSaveProd: false,
+  installGlobal: false,
+  installSaveOptional: false,
+  installSaveExact: false,
+  installMirrorEnabled: false,
+  installMirrorPreset: 'taobao',
+  installMirrorCustomUrl: '',
+  // uninstall
+  uninstallPackages: '',
+  uninstallSaveDev: false,
+  uninstallGlobal: false,
+  // update
+  updatePackages: '',
+  updateSaveDev: false,
+  updateGlobal: false,
+  // init
+  initYes: false,
+  initScope: '',
+  // run
+  runScript: '',
+  // source (独立模式)
+  sourcePreset: 'taobao',
+  sourceCustomUrl: '',
+};
+
+// 预定义源 URL (npm registry)
+const REGISTRY_MAP = {
+  taobao: 'https://registry.npmmirror.com',
+  tencent: 'https://mirrors.cloud.tencent.com/npm/',
+  huawei: 'https://mirrors.huaweicloud.com/repository/npm/',
+  official: 'https://registry.npmjs.org'
+};
+
+// 默认值模板
+const DEFAULT_MODE_STATE = {
+  install: { installPackages: '', installSaveDev: false, installSaveProd: false, installGlobal: false, installSaveOptional: false, installSaveExact: false, installMirrorEnabled: false, installMirrorPreset: 'taobao', installMirrorCustomUrl: '' },
+  uninstall: { uninstallPackages: '', uninstallSaveDev: false, uninstallGlobal: false },
+  update: { updatePackages: '', updateSaveDev: false, updateGlobal: false },
+  init: { initYes: false, initScope: '' },
+  run: { runScript: '' },
+  source: { sourcePreset: 'taobao', sourceCustomUrl: '' }
+};
+
+// 渲染模式切换按钮
+function renderModes() {
+  const g = document.getElementById('modeGrid');
+  g.innerHTML = MODES.map(m => `
+    <div class="mode-card ${state.mode === m.id ? 'on' : ''}" onclick="setMode('${m.id}')">
+      <div class="mc-title">${m.title}</div>
+      <div class="mc-desc">${m.desc}</div>
+    </div>
+  `).join('');
+}
+
+// ---------- 各模式模板 HTML (重点 install 集成临时换源) ----------
+const TEMPLATES = {
+  install: `<div class="card">
+    <div class="label">📦 包名 (多个用空格分隔，留空则安装所有依赖)</div>
+    <input id="install_packages" placeholder="lodash axios express" oninput="updateInstallField('packages', this.value); buildCmd();">
+    
+    <div class="label">⚙️ 安装选项</div>
+    <div class="tags" id="installOptTags">
+      <span class="tag" onclick="toggleInstallFlag('saveDev')">--save-dev (开发依赖)</span>
+      <span class="tag" onclick="toggleInstallFlag('saveProd')">--save-prod (生产依赖)</span>
+      <span class="tag" onclick="toggleInstallFlag('global')">--global (全局安装)</span>
+      <span class="tag" onclick="toggleInstallFlag('saveOptional')">--save-optional (可选依赖)</span>
+      <span class="tag" onclick="toggleInstallFlag('saveExact')">--save-exact (精确版本)</span>
+    </div>
+
+    <!-- 临时换源区域 -->
+    <div class="mirror-section">
+      <div class="label" style="display: flex; align-items: center; gap: 8px;">
+        <span>🪞 临时换源 (--registry)</span>
+        <span class="tag" style="background:#eef2ff; padding:2px 8px;" onclick="toggleInstallMirror()">${modeState.installMirrorEnabled ? '✓ 已启用' : '⚡ 点击启用'}</span>
+      </div>
+      <div id="installMirrorPanel" style="display: ${modeState.installMirrorEnabled ? 'block' : 'none'}; margin-top: 8px;">
+        <div class="tags" id="installMirrorTags">
+          <span class="tag" data-mirror="taobao">淘宝 npm</span>
+          <span class="tag" data-mirror="tencent">腾讯云</span>
+          <span class="tag" data-mirror="huawei">华为云</span>
+          <span class="tag" data-mirror="official">官方源</span>
+          <span class="tag" data-mirror="custom">自定义 URL</span>
+        </div>
+        <div id="installCustomMirrorRow" style="display: none; margin-top: 8px;">
+          <div class="label">自定义镜像地址</div>
+          <input id="install_custom_mirror_url" placeholder="https://registry.example.com" oninput="updateInstallMirrorCustom(this.value); buildCmd();">
+        </div>
+        <div class="hint">✨ 临时使用该镜像源安装，格式：--registry &lt;url&gt;</div>
+      </div>
+    </div>
+    <div class="hint">💡 示例: npm install lodash --save-dev --registry https://registry.npmmirror.com</div>
+  </div>`,
+
+  uninstall: `<div class="card">
+    <div class="label">❌ 要卸载的包名 (空格分隔)</div>
+    <input id="uninstall_packages" placeholder="lodash express" oninput="updateUninstallField('packages', this.value); buildCmd();">
+    <div class="label">⚙️ 选项</div>
+    <div class="tags" id="uninstallOptTags">
+      <span class="tag" onclick="toggleUninstallFlag('saveDev')">--save-dev</span>
+      <span class="tag" onclick="toggleUninstallFlag('global')">--global</span>
+    </div>
+  </div>`,
+
+  update: `<div class="card">
+    <div class="label">🔄 要更新的包名 (空格分隔，留空则更新所有)</div>
+    <input id="update_packages" placeholder="lodash react" oninput="updateUpdateField('packages', this.value); buildCmd();">
+    <div class="label">⚙️ 选项</div>
+    <div class="tags" id="updateOptTags">
+      <span class="tag" onclick="toggleUpdateFlag('saveDev')">--save-dev</span>
+      <span class="tag" onclick="toggleUpdateFlag('global')">--global</span>
+    </div>
+  </div>`,
+
+  init: `<div class="card">
+    <div class="label">✨ npm init 选项</div>
+    <div class="tags" id="initOptTags">
+      <span class="tag" onclick="toggleInitFlag('yes')">-y (使用默认值)</span>
+    </div>
+    <div class="label" style="margin-top: 10px;">作用域 (--scope)</div>
+    <input id="init_scope" placeholder="@myorg" oninput="updateInitField('scope', this.value); buildCmd();">
+    <div class="hint">示例: npm init -y --scope @example</div>
+  </div>`,
+
+  run: `<div class="card">
+    <div class="label">▶️ 要运行的脚本名称</div>
+    <input id="run_script" placeholder="start, test, build" oninput="updateRunField('script', this.value); buildCmd();">
+    <div class="hint">示例: npm run dev</div>
+  </div>`,
+
+  source: `<div class="card">
+    <div class="label">🪞 选择 npm 镜像源</div>
+    <div class="tags" id="sourcePresetTags">
+      <span class="tag" data-source="taobao">淘宝 npm</span>
+      <span class="tag" data-source="tencent">腾讯云</span>
+      <span class="tag" data-source="huawei">华为云</span>
+      <span class="tag" data-source="official">官方源</span>
+      <span class="tag" data-source="custom">自定义 URL</span>
+    </div>
+    <div id="sourceCustomRow" style="display: none; margin-top: 12px;">
+      <div class="label">自定义镜像地址</div>
+      <input id="source_custom_url" placeholder="https://registry.example.com" oninput="updateSourceCustomUrl(this.value); buildCmd();">
+    </div>
+    <div class="hint">✨ 生成永久配置 / 临时换源 / nrm 等命令</div>
+  </div>`
+};
+
+// ---------- 字段更新函数 ----------
+function updateInstallField(field, value) {
+  if (field === 'packages') modeState.installPackages = value;
+  buildCmd();
+}
+function updateUninstallField(field, value) {
+  if (field === 'packages') modeState.uninstallPackages = value;
+  buildCmd();
+}
+function updateUpdateField(field, value) {
+  if (field === 'packages') modeState.updatePackages = value;
+  buildCmd();
+}
+function updateInitField(field, value) {
+  if (field === 'scope') modeState.initScope = value;
+  buildCmd();
+}
+function updateRunField(field, value) {
+  if (field === 'script') modeState.runScript = value;
+  buildCmd();
+}
+function updateSourceCustomUrl(value) {
+  modeState.sourceCustomUrl = value;
+  if (state.mode === 'source') buildCmd();
+}
+function updateInstallMirrorCustom(value) {
+  modeState.installMirrorCustomUrl = value;
+  if (modeState.installMirrorPreset === 'custom') buildCmd();
+}
+
+// ---------- 切换标志函数 ----------
+function toggleInstallFlag(flag) {
+  if (flag === 'saveDev') modeState.installSaveDev = !modeState.installSaveDev;
+  else if (flag === 'saveProd') modeState.installSaveProd = !modeState.installSaveProd;
+  else if (flag === 'global') modeState.installGlobal = !modeState.installGlobal;
+  else if (flag === 'saveOptional') modeState.installSaveOptional = !modeState.installSaveOptional;
+  else if (flag === 'saveExact') modeState.installSaveExact = !modeState.installSaveExact;
+  const idx = flag==='saveDev'?0:flag==='saveProd'?1:flag==='global'?2:flag==='saveOptional'?3:4;
+  const el = document.querySelectorAll('#installOptTags .tag')[idx];
+  if (el) el.classList.toggle('on');
+  buildCmd();
+}
+function toggleUninstallFlag(flag) {
+  if (flag === 'saveDev') modeState.uninstallSaveDev = !modeState.uninstallSaveDev;
+  else if (flag === 'global') modeState.uninstallGlobal = !modeState.uninstallGlobal;
+  const idx = flag==='saveDev'?0:1;
+  const el = document.querySelectorAll('#uninstallOptTags .tag')[idx];
+  if (el) el.classList.toggle('on');
+  buildCmd();
+}
+function toggleUpdateFlag(flag) {
+  if (flag === 'saveDev') modeState.updateSaveDev = !modeState.updateSaveDev;
+  else if (flag === 'global') modeState.updateGlobal = !modeState.updateGlobal;
+  const idx = flag==='saveDev'?0:1;
+  const el = document.querySelectorAll('#updateOptTags .tag')[idx];
+  if (el) el.classList.toggle('on');
+  buildCmd();
+}
+function toggleInitFlag(flag) {
+  if (flag === 'yes') modeState.initYes = !modeState.initYes;
+  const el = document.querySelector('#initOptTags .tag');
+  if (el) el.classList.toggle('on');
+  buildCmd();
+}
+function toggleInstallMirror() {
+  modeState.installMirrorEnabled = !modeState.installMirrorEnabled;
+  const panel = document.getElementById('installMirrorPanel');
+  const btn = document.querySelector('.mirror-section .tag');
+  if (panel) panel.style.display = modeState.installMirrorEnabled ? 'block' : 'none';
+  if (btn) btn.innerText = modeState.installMirrorEnabled ? '✓ 已启用' : '⚡ 点击启用';
+  if (modeState.installMirrorEnabled) updateInstallMirrorUIHighlights();
+  buildCmd();
+}
+function setInstallMirrorPreset(preset) {
+  modeState.installMirrorPreset = preset;
+  const customRow = document.getElementById('installCustomMirrorRow');
+  if (customRow) customRow.style.display = preset === 'custom' ? 'block' : 'none';
+  updateInstallMirrorUIHighlights();
+  buildCmd();
+}
+function updateInstallMirrorUIHighlights() {
+  const tags = document.querySelectorAll('#installMirrorTags .tag');
+  tags.forEach(tag => {
+    const val = tag.getAttribute('data-mirror');
+    if (val === modeState.installMirrorPreset) tag.classList.add('on');
+    else tag.classList.remove('on');
+  });
+}
+function getInstallMirrorUrl() {
+  if (!modeState.installMirrorEnabled) return null;
+  if (modeState.installMirrorPreset === 'custom') {
+    return modeState.installMirrorCustomUrl.trim();
+  } else {
+    return REGISTRY_MAP[modeState.installMirrorPreset] || REGISTRY_MAP.taobao;
+  }
+}
+
+// 独立 source 模式函数
+function setSourcePreset(preset) {
+  modeState.sourcePreset = preset;
+  const tags = document.querySelectorAll('#sourcePresetTags .tag');
+  tags.forEach(tag => {
+    const val = tag.getAttribute('data-source');
+    if (val === preset) tag.classList.add('on');
+    else tag.classList.remove('on');
+  });
+  const customRow = document.getElementById('sourceCustomRow');
+  if (customRow) customRow.style.display = preset === 'custom' ? 'block' : 'none';
+  buildCmd();
+}
+
+// 获取全局 flags
+function getGlobalFlags() {
+  const flags = [];
+  document.querySelectorAll('.tag[data-flag].on').forEach(t => {
+    flags.push(t.dataset.flag);
+  });
+  return flags;
+}
+
+// ---------- 核心命令构建器 ----------
+function buildCmd() {
+  const mode = state.mode;
+  const globalFlags = getGlobalFlags();
+  let cmd = 'npm';
+  if (globalFlags.length && mode !== 'source') cmd += ' ' + globalFlags.join(' ');
+  
+  if (mode === 'install') {
+    let sub = ' install';
+    let opts = [];
+    if (modeState.installSaveDev) opts.push('--save-dev');
+    if (modeState.installSaveProd) opts.push('--save-prod');
+    if (modeState.installGlobal) opts.push('--global');
+    if (modeState.installSaveOptional) opts.push('--save-optional');
+    if (modeState.installSaveExact) opts.push('--save-exact');
+    const mirrorUrl = getInstallMirrorUrl();
+    if (mirrorUrl) opts.push(`--registry "${mirrorUrl}"`);
+    let packages = modeState.installPackages.trim();
+    if (packages !== '') {
+      cmd += sub + (opts.length ? ' ' + opts.join(' ') : '') + ' ' + packages;
+    } else {
+      // 没有包名就是普通 npm install，选项仍可加
+      cmd += sub + (opts.length ? ' ' + opts.join(' ') : '');
+    }
+  } 
+  else if (mode === 'uninstall') {
+    let sub = ' uninstall';
+    let opts = [];
+    if (modeState.uninstallSaveDev) opts.push('--save-dev');
+    if (modeState.uninstallGlobal) opts.push('--global');
+    let packages = modeState.uninstallPackages.trim();
+    if (packages === '') packages = '[包名]';
+    cmd += sub + (opts.length ? ' ' + opts.join(' ') : '') + ' ' + packages;
+  }
+  else if (mode === 'update') {
+    let sub = ' update';
+    let opts = [];
+    if (modeState.updateSaveDev) opts.push('--save-dev');
+    if (modeState.updateGlobal) opts.push('--global');
+    let packages = modeState.updatePackages.trim();
+    if (packages !== '') {
+      cmd += sub + (opts.length ? ' ' + opts.join(' ') : '') + ' ' + packages;
+    } else {
+      cmd += sub + (opts.length ? ' ' + opts.join(' ') : '');
+    }
+  }
+  else if (mode === 'init') {
+    let sub = ' init';
+    let opts = [];
+    if (modeState.initYes) opts.push('-y');
+    if (modeState.initScope.trim()) opts.push(`--scope ${modeState.initScope.trim()}`);
+    cmd += sub + (opts.length ? ' ' + opts.join(' ') : '');
+    if (opts.length === 0) cmd += ' [选项]';
+  }
+  else if (mode === 'run') {
+    let script = modeState.runScript.trim();
+    if (script === '') script = '[脚本名]';
+    cmd += ' run ' + script;
+  }
+  else if (mode === 'source') {
+    const sourceUrl = modeState.sourcePreset === 'custom' ? modeState.sourceCustomUrl : REGISTRY_MAP[modeState.sourcePreset];
+    let outputLines = [];
+    if (!sourceUrl) {
+      outputLines.push('# 请选择一个镜像源或输入自定义URL');
+    } else {
+      outputLines.push(`# 1️⃣ 永久配置 (设置 registry)`);
+      outputLines.push(`npm config set registry "${sourceUrl}"`);
+      outputLines.push(``);
+      outputLines.push(`# 2️⃣ 临时使用 (仅当前命令生效)`);
+      outputLines.push(`npm install --registry "${sourceUrl}" [包名]`);
+      outputLines.push(``);
+      outputLines.push(`# 3️⃣ 使用 nrm 管理源 (推荐)`);
+      outputLines.push(`npm install -g nrm`);
+      outputLines.push(`nrm add myregistry ${sourceUrl}`);
+      outputLines.push(`nrm use myregistry`);
+      outputLines.push(``);
+      outputLines.push(`# 4️⃣ 查看当前源`);
+      outputLines.push(`npm config get registry`);
+    }
+    const outEl = document.getElementById('cmdOut');
+    if (outEl) outEl.textContent = outputLines.join('\n');
+    return;
+  }
+  
+  const outEl = document.getElementById('cmdOut');
+  if (outEl) outEl.textContent = cmd || 'npm --help';
+}
+
+// ---------- 切换模式 (重置模式专属状态) ----------
+function setMode(modeId) {
+  state.mode = modeId;
+  const defaults = DEFAULT_MODE_STATE[modeId] || {};
+  for (let key in defaults) {
+    if (defaults.hasOwnProperty(key)) {
+      modeState[key] = defaults[key];
+    }
+  }
+  // 精细重置
+  if (modeId === 'install') {
+    modeState.installPackages = '';
+    modeState.installSaveDev = false;
+    modeState.installSaveProd = false;
+    modeState.installGlobal = false;
+    modeState.installSaveOptional = false;
+    modeState.installSaveExact = false;
+    modeState.installMirrorEnabled = false;
+    modeState.installMirrorPreset = 'taobao';
+    modeState.installMirrorCustomUrl = '';
+  }
+  if (modeId === 'uninstall') {
+    modeState.uninstallPackages = '';
+    modeState.uninstallSaveDev = false;
+    modeState.uninstallGlobal = false;
+  }
+  if (modeId === 'update') {
+    modeState.updatePackages = '';
+    modeState.updateSaveDev = false;
+    modeState.updateGlobal = false;
+  }
+  if (modeId === 'init') {
+    modeState.initYes = false;
+    modeState.initScope = '';
+  }
+  if (modeId === 'run') {
+    modeState.runScript = '';
+  }
+  if (modeId === 'source') {
+    modeState.sourcePreset = 'taobao';
+    modeState.sourceCustomUrl = '';
+  }
+  
+  renderModes();
+  const dynamicDiv = document.getElementById('dynamicArea');
+  dynamicDiv.innerHTML = TEMPLATES[modeId] || '<div class="card">请选择模式</div>';
+  
+  // 绑定各模式UI状态
+  if (modeId === 'install') {
+    const optTags = document.querySelectorAll('#installOptTags .tag');
+    if (optTags[0]) optTags[0].classList.toggle('on', modeState.installSaveDev);
+    if (optTags[1]) optTags[1].classList.toggle('on', modeState.installSaveProd);
+    if (optTags[2]) optTags[2].classList.toggle('on', modeState.installGlobal);
+    if (optTags[3]) optTags[3].classList.toggle('on', modeState.installSaveOptional);
+    if (optTags[4]) optTags[4].classList.toggle('on', modeState.installSaveExact);
+    const pkgInput = document.getElementById('install_packages');
+    if (pkgInput) pkgInput.value = modeState.installPackages;
+    // 镜像面板
+    const panel = document.getElementById('installMirrorPanel');
+    const btnText = document.querySelector('.mirror-section .tag');
+    if (panel) panel.style.display = modeState.installMirrorEnabled ? 'block' : 'none';
+    if (btnText) btnText.innerText = modeState.installMirrorEnabled ? '✓ 已启用' : '⚡ 点击启用';
+    const mirrorTags = document.querySelectorAll('#installMirrorTags .tag');
+    mirrorTags.forEach(tag => {
+      tag.removeEventListener('click', installMirrorTagHandler);
+      tag.addEventListener('click', installMirrorTagHandler);
+    });
+    const customRow = document.getElementById('installCustomMirrorRow');
+    if (customRow) customRow.style.display = modeState.installMirrorPreset === 'custom' ? 'block' : 'none';
+    const customInput = document.getElementById('install_custom_mirror_url');
+    if (customInput) customInput.value = modeState.installMirrorCustomUrl;
+    updateInstallMirrorUIHighlights();
+  }
+  if (modeId === 'uninstall') {
+    const tags = document.querySelectorAll('#uninstallOptTags .tag');
+    if (tags[0]) tags[0].classList.toggle('on', modeState.uninstallSaveDev);
+    if (tags[1]) tags[1].classList.toggle('on', modeState.uninstallGlobal);
+    const inp = document.getElementById('uninstall_packages');
+    if (inp) inp.value = modeState.uninstallPackages;
+  }
+  if (modeId === 'update') {
+    const tags = document.querySelectorAll('#updateOptTags .tag');
+    if (tags[0]) tags[0].classList.toggle('on', modeState.updateSaveDev);
+    if (tags[1]) tags[1].classList.toggle('on', modeState.updateGlobal);
+    const inp = document.getElementById('update_packages');
+    if (inp) inp.value = modeState.updatePackages;
+  }
+  if (modeId === 'init') {
+    const tag = document.querySelector('#initOptTags .tag');
+    if (tag) tag.classList.toggle('on', modeState.initYes);
+    const scopeInp = document.getElementById('init_scope');
+    if (scopeInp) scopeInp.value = modeState.initScope;
+  }
+  if (modeId === 'run') {
+    const scriptInp = document.getElementById('run_script');
+    if (scriptInp) scriptInp.value = modeState.runScript;
+  }
+  if (modeId === 'source') {
+    const presetTags = document.querySelectorAll('#sourcePresetTags .tag');
+    presetTags.forEach(tag => {
+      tag.removeEventListener('click', sourcePresetHandler);
+      tag.addEventListener('click', sourcePresetHandler);
+    });
+    const customRowDiv = document.getElementById('sourceCustomRow');
+    if (customRowDiv) customRowDiv.style.display = modeState.sourcePreset === 'custom' ? 'block' : 'none';
+    const customUrlInput = document.getElementById('source_custom_url');
+    if (customUrlInput) customUrlInput.value = modeState.sourceCustomUrl;
+    presetTags.forEach(tag => {
+      const val = tag.getAttribute('data-source');
+      if (val === modeState.sourcePreset) tag.classList.add('on');
+      else tag.classList.remove('on');
+    });
+  }
+  buildCmd();
+}
+
+function installMirrorTagHandler(e) {
+  const target = e.currentTarget;
+  const mirrorVal = target.getAttribute('data-mirror');
+  if (mirrorVal) setInstallMirrorPreset(mirrorVal);
+}
+function sourcePresetHandler(e) {
+  const target = e.currentTarget;
+  const sourceVal = target.getAttribute('data-source');
+  if (sourceVal) setSourcePreset(sourceVal);
+}
+
+function resetAll() {
+  document.querySelectorAll('.tag[data-flag].on').forEach(t => t.classList.remove('on'));
+  // 重置所有模式状态
+  for (let key in DEFAULT_MODE_STATE.install) modeState[key] = DEFAULT_MODE_STATE.install[key];
+  modeState.installPackages = '';
+  modeState.installSaveDev = false;
+  modeState.installSaveProd = false;
+  modeState.installGlobal = false;
+  modeState.installSaveOptional = false;
+  modeState.installSaveExact = false;
+  modeState.installMirrorEnabled = false;
+  modeState.installMirrorPreset = 'taobao';
+  modeState.installMirrorCustomUrl = '';
+  modeState.uninstallPackages = '';
+  modeState.uninstallSaveDev = false;
+  modeState.uninstallGlobal = false;
+  modeState.updatePackages = '';
+  modeState.updateSaveDev = false;
+  modeState.updateGlobal = false;
+  modeState.initYes = false;
+  modeState.initScope = '';
+  modeState.runScript = '';
+  modeState.sourcePreset = 'taobao';
+  modeState.sourceCustomUrl = '';
+  setMode('install');
+}
+
+async function copyCmd() {
+  const txt = document.getElementById('cmdOut').innerText;
+  if (!txt) return;
+  try {
+    await navigator.clipboard.writeText(txt);
+    const el = document.getElementById('cmdOut');
+    const originalBg = el.style.background;
+    el.style.background = '#d4edda';
+    setTimeout(() => { el.style.background = originalBg; }, 600);
+  } catch(e) { alert('手动复制'); }
+}
+
+// 全局 flag 点击事件
+document.addEventListener('click', (e) => {
+  if (e.target.classList && e.target.classList.contains('tag') && e.target.hasAttribute('data-flag')) {
+    e.target.classList.toggle('on');
+    buildCmd();
+  }
+});
+
+setMode('install');
+</script>
+</body>
+</html>
