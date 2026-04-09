@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+  <title>yt-dlp 命令生成器 · 可视下载</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;background:#f5f7fa;padding:16px 12px 24px;color:#1e293b;}
+    .wrap{max-width:800px;margin:0 auto;}
+    .page-title{font-size:24px;font-weight:600;letter-spacing:-0.01em;margin-bottom:4px;color:#0f172a;}
+    .page-desc{font-size:13px;color:#64748b;margin-bottom:20px;border-left:3px solid #3b82f6;padding-left:12px;}
+    .card{background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:1.2rem 1.25rem;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,0.02);transition:box-shadow 0.1s;}
+    .label{font-size:12px;font-weight:500;color:#475569;margin-bottom:6px;margin-top:10px;letter-spacing:0.3px;}
+    .label:first-child{margin-top:0;}
+    input,select,textarea{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;background:#fafcff;color:#0f172a;font-family:inherit;transition:border 0.15s;}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:#3b82f6;background:#ffffff;box-shadow:0 0 0 3px rgba(59,130,246,0.1);}
+    .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+    .tag{padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:30px;font-size:12px;font-weight:500;cursor:pointer;background:#f8fafc;color:#334155;user-select:none;transition:all 0.15s;}
+    .tag:hover{border-color:#94a3b8;background:#ffffff;}
+    .tag.on{background:#dbeafe;border-color:#3b82f6;color:#1e4bd2;font-weight:500;}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .output-block{background:#0b1120;border:1px solid #334155;border-radius:14px;padding:1rem 1.3rem;margin-top:16px;font-family:'SF Mono', 'Menlo', 'Monaco', 'Cascadia Code', monospace;font-size:13px;line-height:1.6;word-break:break-all;white-space:pre-wrap;color:#e2e8f0;min-height:62px;box-shadow:inset 0 0 0 1px #1e293b;}
+    .btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+    button{padding:9px 18px;border:1.5px solid #cbd5e1;border-radius:40px;background:white;color:#1e293b;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 0.15s;box-shadow:0 1px 2px rgba(0,0,0,0.02);}
+    button:hover{background:#f1f5f9;border-color:#94a3b8;}
+    button:active{transform:scale(0.97);}
+    .btn-primary{background:#1e4bd2;border-color:#1e4bd2;color:white;box-shadow:0 4px 8px rgba(30,75,210,0.15);}
+    .btn-primary:hover{background:#2563eb;border-color:#2563eb;}
+    .mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px;}
+    .mode-card{border:1.5px solid #e2e8f0;border-radius:14px;padding:12px 8px;cursor:pointer;background:#fafcff;transition:all 0.15s;text-align:center;}
+    .mode-card:hover{border-color:#94a3b8;background:#ffffff;}
+    .mode-card.on{background:#dbeafe;border-color:#3b82f6;}
+    .mc-title{font-size:14px;font-weight:600;color:#0f172a;margin-bottom:3px;}
+    .mc-desc{font-size:11px;color:#64748b;}
+    .section-sep{border:none;border-top:1.5px dashed #e2e8f0;margin:16px 0 8px;}
+    .hint{font-size:11px;color:#64748b;margin-top:4px;}
+    .url-hint{background:#f1f5f9;padding:6px 12px;border-radius:20px;font-size:12px;}
+    .flex-row{display:flex;align-items:center;gap:10px;}
+    .mono-badge{font-family:monospace;background:#eef2ff;padding:2px 8px;border-radius:20px;font-size:12px;}
+  </style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="page-title">⬇️ yt-dlp 命令生成器</div>
+  <div class="page-desc">视频/音频下载 · 播放列表 · 字幕 · 格式选择 — 自动生成 yt-dlp 命令</div>
+
+  <!-- 模式卡片 -->
+  <div class="card">
+    <div class="label">📌 选择场景</div>
+    <div class="mode-grid" id="modeGrid"></div>
+  </div>
+
+  <!-- 动态表单区域 -->
+  <div id="dynamicArea"></div>
+
+  <!-- 通用标志 (tags) -->
+  <div class="card">
+    <div class="label">⚡ 通用标志 (点击切换)</div>
+    <div class="tags" id="globalFlags">
+      <span class="tag" data-flag="--no-playlist">🚫 仅当前视频</span>
+      <span class="tag" data-flag="--yes-playlist">📋 下载播放列表</span>
+      <span class="tag" data-flag="--no-overwrites">🛡️ 不覆盖已有文件</span>
+      <span class="tag" data-flag="--continue">⏯️ 断点续传</span>
+      <span class="tag" data-flag="--ignore-errors">⚠️ 忽略错误</span>
+      <span class="tag" data-flag="--no-mtime">📅 不保留文件时间</span>
+      <span class="tag" data-flag="--verbose">🔍 详细输出</span>
+    </div>
+    <div class="hint" style="margin-top:8px;">* 通用标志会追加到命令末尾 (部分互斥，请按需选择)</div>
+  </div>
+
+  <!-- 命令输出区 -->
+  <div class="output-block" id="cmdOut">yt-dlp ...</div>
+
+  <div class="btn-row">
+    <button class="btn-primary" onclick="copyCmd()">📋 复制命令</button>
+    <button onclick="resetAll()">🔄 重置为默认</button>
+  </div>
+  <div style="font-size:11px; color:#94a3b8; margin-top:12px; text-align:center;">yt-dlp 需已安装 · 命令可直接在终端运行</div>
+</div>
+
+<script>
+  (function(){
+    "use strict";
+
+    // ---------- 模式定义 ----------
+    const MODES = [
+      { id: 'basic', title: '📥 基础下载', desc: 'URL + 输出模板' },
+      { id: 'audio', title: '🎵 提取音频', desc: '转换为 mp3/m4a 等' },
+      { id: 'playlist', title: '📋 播放列表', desc: '索引/逆序/随机' },
+      { id: 'format', title: '🎬 格式选择', desc: '分辨率/编码优选' },
+      { id: 'subtitle', title: '📜 字幕处理', desc: '下载/嵌入字幕' },
+      { id: 'network', title: '🌐 网络/高级', desc: '代理/限速/Cookie' }
+    ];
+
+    // 全局状态
+    let state = {
+      mode: 'basic',
+      flags: new Set()     // 存储激活的通用flag (data-flag)
+    };
+    // 各模式内部状态
+    let modeState = {};
+
+    // DOM 元素
+    const modeGrid = document.getElementById('modeGrid');
+    const dynamicArea = document.getElementById('dynamicArea');
+    const cmdOut = document.getElementById('cmdOut');
+
+    // ---------- 渲染模式卡片 ----------
+    function renderModes() {
+      modeGrid.innerHTML = MODES.map(m => `
+        <div class="mode-card ${state.mode === m.id ? 'on' : ''}" onclick="setMode('${m.id}')">
+          <div class="mc-title">${m.title}</div>
+          <div class="mc-desc">${m.desc}</div>
+        </div>
+      `).join('');
+    }
+
+    // ---------- 各模式的HTML模板 ----------
+    const TEMPLATES = {
+      basic: `
+        <div class="card">
+          <div class="label">🔗 视频/播放列表 URL</div>
+          <input id="f_url" placeholder="https://www.youtube.com/watch?v=..." value="" oninput="buildCmd()">
+          <div class="hint">支持 YouTube, B站, TikTok 等数千站点</div>
+          <div class="label" style="margin-top:14px;">📁 输出模板 (-o)</div>
+          <input id="f_output" placeholder="%(title)s.%(ext)s" value="%(title)s.%(ext)s" oninput="buildCmd()">
+          <div class="tags" style="margin-top:8px;">
+            <span class="tag" onclick="setOutputTemplate('%(title)s.%(ext)s')">默认</span>
+            <span class="tag" onclick="setOutputTemplate('%(title)s-%(id)s.%(ext)s')">带ID</span>
+            <span class="tag" onclick="setOutputTemplate('~/Videos/%(title)s.%(ext)s')">保存到 Videos</span>
+            <span class="tag" onclick="setOutputTemplate('%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s')">播放列表子目录</span>
+          </div>
+          <div class="label" style="margin-top:14px;">✨ 附加选项</div>
+          <div class="tags" id="basicOpts">
+            <span class="tag" data-opt="--embed-thumbnail" onclick="toggleOpt(this)">🖼️ 嵌入缩略图</span>
+            <span class="tag" data-opt="--write-thumbnail" onclick="toggleOpt(this)">💾 下载缩略图</span>
+            <span class="tag" data-opt="--add-metadata" onclick="toggleOpt(this)">🏷️ 写入元数据</span>
+          </div>
+        </div>
+      `,
+      audio: `
+        <div class="card">
+          <div class="label">🔗 URL</div>
+          <input id="f_url" placeholder="视频/音频链接" oninput="buildCmd()">
+          <div class="label">🎧 音频格式</div>
+          <div class="tags" id="audioFmtTags">
+            <span class="tag on" onclick="pickAudioFmt(this,'mp3')">MP3</span>
+            <span class="tag" onclick="pickAudioFmt(this,'m4a')">M4A (AAC)</span>
+            <span class="tag" onclick="pickAudioFmt(this,'opus')">Opus</span>
+            <span class="tag" onclick="pickAudioFmt(this,'flac')">FLAC</span>
+            <span class="tag" onclick="pickAudioFmt(this,'wav')">WAV</span>
+          </div>
+          <div class="label">🎚️ 音质</div>
+          <div class="tags" id="audioQualityTags">
+            <span class="tag on" onclick="pickAudioQuality(this,'0')">最佳 (0)</span>
+            <span class="tag" onclick="pickAudioQuality(this,'5')">中等 (5)</span>
+            <span class="tag" onclick="pickAudioQuality(this,'128K')">128kbps</span>
+            <span class="tag" onclick="pickAudioQuality(this,'320K')">320kbps</span>
+          </div>
+          <div class="label">📁 输出模板</div>
+          <input id="f_output" placeholder="%(title)s.%(ext)s" value="%(title)s.%(ext)s" oninput="buildCmd()">
+          <div class="tags" style="margin-top:6px;">
+            <span class="tag" data-opt="--embed-thumbnail" onclick="toggleOpt(this)">嵌入封面</span>
+            <span class="tag" data-opt="--add-metadata" onclick="toggleOpt(this)">写入元数据</span>
+          </div>
+        </div>
+      `,
+      playlist: `
+        <div class="card">
+          <div class="label">🔗 播放列表 URL</div>
+          <input id="f_url" placeholder="https://www.youtube.com/playlist?list=..." oninput="buildCmd()">
+          <div class="row2" style="margin-top:12px;">
+            <div><div class="label">起始索引 (--playlist-start)</div><input id="f_start" placeholder="1" value="1" oninput="buildCmd()"></div>
+            <div><div class="label">结束索引 (--playlist-end)</div><input id="f_end" placeholder="留空=全部" oninput="buildCmd()"></div>
+          </div>
+          <div class="label">📌 播放列表选项</div>
+          <div class="tags" id="plFlags">
+            <span class="tag" data-opt="--playlist-reverse" onclick="toggleOpt(this)">🔄 逆序下载</span>
+            <span class="tag" data-opt="--playlist-random" onclick="toggleOpt(this)">🎲 随机顺序</span>
+            <span class="tag" data-opt="--flat-playlist" onclick="toggleOpt(this)">📋 仅列出(不下载)</span>
+          </div>
+          <div class="label">📁 输出模板 (支持播放列表变量)</div>
+          <input id="f_output" placeholder="%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s" value="%(playlist)s/%(playlist_index)s - %(title)s.%(ext)s" oninput="buildCmd()">
+          <div class="hint">常用: %(playlist)s, %(playlist_index)s, %(title)s</div>
+        </div>
+      `,
+      format: `
+        <div class="card">
+          <div class="label">🔗 URL</div>
+          <input id="f_url" placeholder="视频链接" oninput="buildCmd()">
+          <div class="label">📺 格式选择</div>
+          <div class="tags" id="fmtSelectTags">
+            <span class="tag on" onclick="pickFormat(this,'bestvideo+bestaudio/best')">最佳视频+音频</span>
+            <span class="tag" onclick="pickFormat(this,'best[height<=1080]')">≤1080p 最佳</span>
+            <span class="tag" onclick="pickFormat(this,'best[height<=720]')">≤720p 最佳</span>
+            <span class="tag" onclick="pickFormat(this,'worst')">最低质量</span>
+            <span class="tag" onclick="pickFormat(this,'bv*+ba/b')">自定义 (下方输入)</span>
+          </div>
+          <div class="label" style="margin-top:12px;">✏️ 自定义格式字符串</div>
+          <input id="f_customFmt" placeholder="bv[height<=720]+ba / b" value="bv*+ba/b" oninput="buildCmd()">
+          <div class="hint">例: bv[height<=1080]+ba/b, 或 bestaudio</div>
+          <div class="label">📁 输出模板</div>
+          <input id="f_output" placeholder="%(title)s.%(ext)s" value="%(title)s.%(ext)s" oninput="buildCmd()">
+        </div>
+      `,
+      subtitle: `
+        <div class="card">
+          <div class="label">🔗 URL</div>
+          <input id="f_url" placeholder="视频链接" oninput="buildCmd()">
+          <div class="label">🌐 字幕语言 (逗号分隔)</div>
+          <input id="f_sublang" placeholder="en,zh-Hans,ja" value="en,zh-Hans" oninput="buildCmd()">
+          <div class="tags" style="margin-top:6px;">
+            <span class="tag" onclick="setSubLang('en')">英语</span>
+            <span class="tag" onclick="setSubLang('zh-Hans')">简中</span>
+            <span class="tag" onclick="setSubLang('zh-Hant')">繁中</span>
+            <span class="tag" onclick="setSubLang('ja')">日语</span>
+            <span class="tag" onclick="setSubLang('ko')">韩语</span>
+          </div>
+          <div class="label">📥 字幕操作</div>
+          <div class="tags" id="subActions">
+            <span class="tag on" data-opt="--write-subs" onclick="toggleOpt(this)">📄 下载字幕</span>
+            <span class="tag" data-opt="--write-auto-subs" onclick="toggleOpt(this)">🤖 下载自动字幕</span>
+            <span class="tag" data-opt="--embed-subs" onclick="toggleOpt(this)">🎬 嵌入字幕</span>
+            <span class="tag" data-opt="--skip-download" onclick="toggleOpt(this)">⏸️ 仅下载字幕(不下载视频)</span>
+          </div>
+          <div class="label">📁 输出模板</div>
+          <input id="f_output" placeholder="%(title)s.%(ext)s" value="%(title)s.%(ext)s" oninput="buildCmd()">
+        </div>
+      `,
+      network: `
+        <div class="card">
+          <div class="label">🔗 URL</div>
+          <input id="f_url" placeholder="视频链接" oninput="buildCmd()">
+          <div class="label">🌍 代理 (--proxy)</div>
+          <input id="f_proxy" placeholder="socks5://127.0.0.1:1080 或 http://..." oninput="buildCmd()">
+          <div class="label">⏬ 限速 (--limit-rate)</div>
+          <div style="display:flex; gap:8px;">
+            <input id="f_limitrate" placeholder="例如 5M 或 500K" style="flex:2;" oninput="buildCmd()">
+            <select id="f_rateUnit" style="width:90px;" onchange="buildCmd()">
+              <option value="K">K</option><option value="M" selected>M</option>
+            </select>
+          </div>
+          <div class="label">🍪 Cookie 文件 (--cookies)</div>
+          <input id="f_cookies" placeholder="cookies.txt 路径" oninput="buildCmd()">
+          <div class="label">🕶️ 自定义 User-Agent</div>
+          <input id="f_ua" placeholder="Mozilla/5.0 ..." oninput="buildCmd()">
+          <div class="label">📁 输出模板</div>
+          <input id="f_output" placeholder="%(title)s.%(ext)s" value="%(title)s.%(ext)s" oninput="buildCmd()">
+        </div>
+      `,
+    };
+
+    // 辅助函数
+    window.g = (id) => document.getElementById(id);
+    window.val = (id) => { const e = g(id); return e ? e.value.trim() : ''; };
+
+    // 切换模式
+    window.setMode = function(modeId) {
+      state.mode = modeId;
+      // 重置模式内部状态 (保留各模式独立)
+      modeState = {
+        audioFmt: 'mp3', audioQuality: '0',
+        formatSel: 'bestvideo+bestaudio/best', customFmt: 'bv*+ba/b',
+        subLang: 'en,zh-Hans',
+        // 其他临时状态
+        basicOpts: new Set(),
+        audioOpts: new Set(),
+        plOpts: new Set(),
+        subOpts: new Set(['--write-subs']),
+        networkOpts: new Set()
+      };
+      renderModes();
+      dynamicArea.innerHTML = TEMPLATES[modeId] || '';
+      // 绑定动态事件 (部分通过onclick属性已处理)
+      attachDynamicListeners();
+      buildCmd();
+    };
+
+    function attachDynamicListeners() {
+      // 初始化一些tag高亮 (比如字幕默认--write-subs on)
+      const subActions = document.querySelectorAll('#subActions .tag');
+      subActions.forEach(t => {
+        if (t.dataset.opt === '--write-subs') t.classList.add('on');
+      });
+      // 基础模式的选项状态
+    }
+
+    // ---------- 交互函数 (暴露给onclick) ----------
+    window.toggleOpt = function(el) {
+      el.classList.toggle('on');
+      buildCmd();
+    };
+
+    window.pickAudioFmt = function(el, fmt) {
+      pickOne('#audioFmtTags .tag', el);
+      modeState.audioFmt = fmt;
+      buildCmd();
+    };
+    window.pickAudioQuality = function(el, q) {
+      pickOne('#audioQualityTags .tag', el);
+      modeState.audioQuality = q;
+      buildCmd();
+    };
+    window.pickFormat = function(el, fmt) {
+      pickOne('#fmtSelectTags .tag', el);
+      modeState.formatSel = fmt;
+      const customInput = g('f_customFmt');
+      if (fmt.includes('自定义') && customInput) {
+        customInput.disabled = false;
+      } else {
+        if (customInput) customInput.disabled = false; // 永远可用，但可以覆盖
+      }
+      buildCmd();
+    };
+    window.setSubLang = function(lang) {
+      const inp = g('f_sublang');
+      if (inp) { inp.value = lang; buildCmd(); }
+    };
+    window.setOutputTemplate = function(tpl) {
+      const inp = g('f_output');
+      if (inp) { inp.value = tpl; buildCmd(); }
+    };
+
+    function pickOne(selector, el) {
+      document.querySelectorAll(selector).forEach(t => t.classList.remove('on'));
+      el.classList.add('on');
+    }
+
+    // 收集通用flag (来自globalFlags)
+    function getGlobalFlags() {
+      const flags = [];
+      document.querySelectorAll('#globalFlags .tag.on').forEach(t => {
+        const f = t.dataset.flag;
+        if (f) flags.push(f);
+      });
+      return flags;
+    }
+
+    // 收集模式内激活的选项 (data-opt)
+    function getModeOpts(containerId = null) {
+      const opts = [];
+      let selector = '.tag.on[data-opt]';
+      if (containerId) {
+        const container = g(containerId);
+        if (container) container.querySelectorAll('.tag.on[data-opt]').forEach(t => opts.push(t.dataset.opt));
+      } else {
+        document.querySelectorAll('#dynamicArea .tag.on[data-opt]').forEach(t => opts.push(t.dataset.opt));
+      }
+      return opts;
+    }
+
+    // ---------- 命令构建核心 ----------
+    window.buildCmd = function() {
+      const m = state.mode;
+      const globalFlags = getGlobalFlags();
+      const baseCmd = 'yt-dlp';
+      
+      let url = val('f_url') || 'https://www.youtube.com/watch?v=...';
+      const output = val('f_output') || '%(title)s.%(ext)s';
+      
+      let options = [];
+      
+      // 根据模式生成选项
+      if (m === 'basic') {
+        const opts = getModeOpts('basicOpts');
+        options.push(...opts);
+        options.push('-o', `"${output}"`);
+      } else if (m === 'audio') {
+        options.push('-x', '--audio-format', modeState.audioFmt);
+        const q = modeState.audioQuality;
+        if (q === '128K') options.push('--audio-quality', '128K');
+        else if (q === '320K') options.push('--audio-quality', '320K');
+        else options.push('--audio-quality', q);
+        const extra = getModeOpts();
+        options.push(...extra);
+        options.push('-o', `"${output}"`);
+      } else if (m === 'playlist') {
+        const start = val('f_start');
+        const end = val('f_end');
+        if (start) options.push('--playlist-start', start);
+        if (end) options.push('--playlist-end', end);
+        const plOpts = getModeOpts('plFlags');
+        options.push(...plOpts);
+        options.push('-o', `"${output}"`);
+      } else if (m === 'format') {
+        let fmtStr = modeState.formatSel;
+        if (fmtStr.includes('自定义')) {
+          fmtStr = val('f_customFmt') || 'bv*+ba/b';
+        }
+        options.push('-f', fmtStr);
+        options.push('-o', `"${output}"`);
+      } else if (m === 'subtitle') {
+        const lang = val('f_sublang') || 'en,zh-Hans';
+        if (lang) options.push('--sub-langs', lang);
+        const subOpts = getModeOpts('subActions');
+        options.push(...subOpts);
+        options.push('-o', `"${output}"`);
+      } else if (m === 'network') {
+        const proxy = val('f_proxy');
+        if (proxy) options.push('--proxy', proxy);
+        const rateVal = val('f_limitrate');
+        if (rateVal) {
+          const unit = g('f_rateUnit')?.value || 'M';
+          options.push('--limit-rate', rateVal + unit);
+        }
+        const cookies = val('f_cookies');
+        if (cookies) options.push('--cookies', cookies);
+        const ua = val('f_ua');
+        if (ua) options.push('--user-agent', `"${ua}"`);
+        options.push('-o', `"${output}"`);
+      }
+
+      // 组合命令: yt-dlp [options] [globalFlags] "URL"
+      let cmdParts = [baseCmd];
+      if (options.length) cmdParts.push(options.join(' '));
+      if (globalFlags.length) cmdParts.push(globalFlags.join(' '));
+      
+      // URL 加引号防止特殊字符
+      let urlStr = url.includes(' ') ? `"${url}"` : url;
+      cmdParts.push(urlStr);
+      
+      let finalCmd = cmdParts.filter(p => p && p.trim() !== '').join(' ');
+      // 清理多余空格
+      finalCmd = finalCmd.replace(/\s+/g, ' ').trim();
+      cmdOut.textContent = finalCmd || 'yt-dlp (请填写URL)';
+    };
+
+    // ---------- 通用标志点击切换 ----------
+    function initGlobalFlags() {
+      document.querySelectorAll('#globalFlags .tag').forEach(t => {
+        t.addEventListener('click', function(e) {
+          this.classList.toggle('on');
+          buildCmd();
+        });
+      });
+    }
+
+    // 复制命令
+    window.copyCmd = async function() {
+      const txt = cmdOut.textContent;
+      try {
+        await navigator.clipboard.writeText(txt);
+        const origBg = cmdOut.style.background;
+        cmdOut.style.background = '#1e3a5f';
+        cmdOut.style.transition = 'background 0.2s';
+        setTimeout(() => { cmdOut.style.background = origBg; }, 600);
+      } catch (err) {
+        alert('❌ 复制失败，可手动复制');
+      }
+    };
+
+    window.resetAll = function() {
+      // 重置通用flags
+      document.querySelectorAll('#globalFlags .tag').forEach(t => t.classList.remove('on'));
+      setMode('basic');
+    };
+
+    // 手动挂载一些全局函数
+    window.pickOne = pickOne;
+
+    // 初始化
+    function init() {
+      renderModes();
+      setMode('basic');
+      initGlobalFlags();
+    }
+    init();
+  })();
+</script>
+</body>
+</html>
