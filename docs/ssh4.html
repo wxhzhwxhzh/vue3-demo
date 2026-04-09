@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH 命令生成器 · 简洁商务版</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --surface-subtle: #f8fafc;
+            --border: #e6edf4;
+            --border-strong: #cbd5e1;
+            --text: #1e293b;
+            --text-light: #5b6e8c;
+            --muted: #7e8b9f;
+            --accent: #1e6fdf;
+            --accent-dark: #1557b0;
+            --accent-soft: #eef4ff;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            --radius: 10px;
+            --radius-sm: 6px;
+            --mono: 'JetBrains Mono', monospace;
+            --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            min-height: 100vh;
+            padding: 2rem 1.5rem 4rem;
+            line-height: 1.4;
+        }
+
+        #app {
+            max-width: 880px;
+            margin: 0 auto;
+        }
+
+        /* 头部 */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding: 1rem 0 1rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+        }
+
+        .logo-icon {
+            width: 34px;
+            height: 34px;
+            background: var(--accent);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-icon svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: white;
+            stroke-width: 1.8;
+        }
+
+        .logo-title {
+            font-family: var(--mono);
+            font-size: 1.35rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .header-desc {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--muted);
+            background: var(--surface-subtle);
+            padding: 0.2rem 0.7rem;
+            border-radius: 30px;
+        }
+
+        /* 卡片面板 */
+        .panel {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.25rem;
+            border: 1px solid var(--border);
+            transition: box-shadow 0.2s ease;
+        }
+        .panel:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .section-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-label .dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+        }
+
+        .sub-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 1.2rem 0 0.75rem 0;
+        }
+
+        .field-label {
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: var(--text-light);
+            margin-bottom: 0.4rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.9rem;
+        }
+        @media (max-width: 640px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        input, select {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 0.82rem;
+            padding: 0.6rem 0.85rem;
+            width: 100%;
+            outline: none;
+            transition: all 0.2s;
+        }
+        input:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(30,111,223,0.1);
+        }
+
+        .chip-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.3rem 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 40px;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            background: var(--surface);
+            color: var(--text-light);
+            transition: all 0.2s;
+        }
+        .chip:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .chip.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 1rem 0;
+        }
+
+        /* 转发规则动态列表 (类似 pkg-tags) */
+        .rule-row {
+            display: flex;
+            gap: 0.6rem;
+            margin-bottom: 0.7rem;
+        }
+        .rule-row input {
+            flex: 1;
+        }
+        .add-btn {
+            background: var(--accent);
+            border: none;
+            border-radius: var(--radius-sm);
+            color: white;
+            font-family: var(--sans);
+            font-weight: 500;
+            font-size: 0.85rem;
+            padding: 0 1.2rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .add-btn:hover {
+            background: var(--accent-dark);
+            transform: translateY(-1px);
+        }
+        .rule-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .rule-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: var(--surface-subtle);
+            border: 1px solid var(--border);
+            border-radius: 40px;
+            font-family: var(--mono);
+            font-size: 0.73rem;
+            padding: 0.25rem 0.8rem;
+            color: var(--text);
+        }
+        .rule-tag .rm {
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            font-weight: 500;
+        }
+        .rule-tag .rm:hover {
+            color: #e5484d;
+        }
+
+        .output-panel {
+            margin-top: 2rem;
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-md);
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .output-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+        }
+        .copy-btn {
+            background: var(--accent);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-family: var(--sans);
+            font-size: 0.72rem;
+            font-weight: 500;
+            padding: 0.35rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover {
+            background: var(--accent-dark);
+            transform: translateY(-1px);
+        }
+        .copy-btn.copied {
+            background: #2c8c5c;
+        }
+        .command-text {
+            font-family: var(--mono);
+            font-size: 0.9rem;
+            line-height: 1.7;
+            background: var(--surface-subtle);
+            padding: 1rem 1.2rem;
+            border-radius: var(--radius-sm);
+            border-left: 3px solid var(--accent);
+            word-break: break-all;
+            white-space: pre-wrap;
+            color: #0f172a;
+        }
+        .t-cmd  { color: #1e293b; font-weight: 600; }
+        .t-flag { color: #e67c1f; font-weight: 500; }
+        .t-arg  { color: var(--accent); font-weight: 500; }
+        .t-userhost { color: #2f7b5c; font-weight: 500; }
+
+        .hint {
+            background: #fef9e6;
+            border-left: 3px solid #e6b12e;
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            font-size: 0.7rem;
+            color: #8a6300;
+            margin-top: 0.6rem;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="header">
+        <div class="logo-wrap">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+            </div>
+            <div class="logo-title">ssh</div>
+        </div>
+        <div class="header-desc">安全连接 · 隧道生成器</div>
+    </div>
+
+    <!-- 基础连接设置 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>目标主机</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">用户名 (可选)</div>
+                <input v-model="form.user" placeholder="root / ubuntu">
+            </div>
+            <div>
+                <div class="field-label">主机地址 *</div>
+                <input v-model="form.host" placeholder="example.com 或 192.168.1.100">
+            </div>
+        </div>
+        <div class="grid-2" style="margin-top: 0.8rem;">
+            <div>
+                <div class="field-label">端口 (默认22)</div>
+                <input v-model="form.port" placeholder="22" type="number">
+            </div>
+            <div>
+                <div class="field-label">远程命令 (可选)</div>
+                <input v-model="form.remoteCmd" placeholder="ls -la / 或 'top -b'">
+            </div>
+        </div>
+    </div>
+
+    <!-- 认证 & 连接选项 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>认证与选项</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">私钥文件 (-i)</div>
+                <input v-model="form.identityFile" placeholder="~/.ssh/id_rsa">
+            </div>
+            <div>
+                <div class="field-label">跳板机 ProxyJump (-J)</div>
+                <input v-model="form.proxyJump" placeholder="user@bastion:22">
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div class="chip-group">
+            <span class="chip" :class="{ active: form.compression }" @click="form.compression = !form.compression">-C 压缩</span>
+            <span class="chip" :class="{ active: form.x11 }" @click="form.x11 = !form.x11">-X X11转发</span>
+            <span class="chip" :class="{ active: form.agentForward }" @click="form.agentForward = !form.agentForward">-A Agent转发</span>
+            <span class="chip" :class="{ active: form.pty }" @click="form.pty = !form.pty">-t 伪终端</span>
+            <span class="chip" :class="{ active: form.verbose }" @click="form.verbose = !form.verbose">-v 详细模式</span>
+            <span class="chip" :class="{ active: form.quiet }" @click="form.quiet = !form.quiet">-q 安静模式</span>
+            <span class="chip" :class="{ active: form.background }" @click="form.background = !form.background">-f 后台执行</span>
+        </div>
+        <div class="divider"></div>
+        <div>
+            <div class="field-label">自定义 -o 选项 (例如 ServerAliveInterval=60)</div>
+            <input v-model="form.customOption" placeholder="StrictHostKeyChecking=no">
+        </div>
+        <div v-if="form.customOption" class="hint">将生成 -o "{{ form.customOption }}"</div>
+    </div>
+
+    <!-- 本地转发 (多个) -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>本地转发 -L</div>
+        <div class="rule-row">
+            <input v-model="newLocalForward" placeholder="格式: [bind_addr:]port:host:hostport  例如 8080:localhost:80">
+            <button class="add-btn" @click="addLocalForward">+ 添加</button>
+        </div>
+        <div class="rule-tags" v-if="form.localForwards.length">
+            <span class="rule-tag" v-for="(fw, idx) in form.localForwards" :key="'L'+idx">
+                {{ fw }}<span class="rm" @click="removeLocalForward(idx)">×</span>
+            </span>
+        </div>
+
+        <div class="sub-label" style="margin-top: 1rem;">远程转发 -R</div>
+        <div class="rule-row">
+            <input v-model="newRemoteForward" placeholder="格式: [bind_addr:]port:host:hostport  例如 2222:localhost:22">
+            <button class="add-btn" @click="addRemoteForward">+ 添加</button>
+        </div>
+        <div class="rule-tags" v-if="form.remoteForwards.length">
+            <span class="rule-tag" v-for="(fw, idx) in form.remoteForwards" :key="'R'+idx">
+                {{ fw }}<span class="rm" @click="removeRemoteForward(idx)">×</span>
+            </span>
+        </div>
+
+        <div class="sub-label" style="margin-top: 1rem;">动态转发 -D (SOCKS代理)</div>
+        <div class="rule-row">
+            <input v-model="newDynamicForward" placeholder="本地端口 例如 1080">
+            <button class="add-btn" @click="addDynamicForward">+ 添加</button>
+        </div>
+        <div class="rule-tags" v-if="form.dynamicForwards.length">
+            <span class="rule-tag" v-for="(port, idx) in form.dynamicForwards" :key="'D'+idx">
+                -D {{ port }}<span class="rm" @click="removeDynamicForward(idx)">×</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- 输出 -->
+    <div class="output-panel">
+        <div class="output-header">
+            <div class="output-label">生成的 SSH 命令</div>
+            <button class="copy-btn" :class="{ copied: copied }" @click="copyCmd">
+                {{ copied ? '✓ 已复制' : '复制命令' }}
+            </button>
+        </div>
+        <div class="command-text" v-html="highlightedCommand"></div>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed } = Vue;
+
+createApp({
+    setup() {
+        // 表单数据
+        const form = ref({
+            user: '',
+            host: '',
+            port: '22',
+            remoteCmd: '',
+            identityFile: '',
+            proxyJump: '',
+            compression: false,
+            x11: false,
+            agentForward: false,
+            pty: false,
+            verbose: false,
+            quiet: false,
+            background: false,
+            customOption: '',
+            localForwards: [],      // 字符串数组 如 "8080:localhost:80"
+            remoteForwards: [],     // 字符串数组
+            dynamicForwards: []     // 端口号字符串
+        });
+
+        const newLocalForward = ref('');
+        const newRemoteForward = ref('');
+        const newDynamicForward = ref('');
+        const copied = ref(false);
+
+        // 添加删除方法
+        const addLocalForward = () => {
+            let val = newLocalForward.value.trim();
+            if (val && !form.value.localForwards.includes(val)) {
+                form.value.localForwards.push(val);
+                newLocalForward.value = '';
+            }
+        };
+        const removeLocalForward = (idx) => form.value.localForwards.splice(idx, 1);
+
+        const addRemoteForward = () => {
+            let val = newRemoteForward.value.trim();
+            if (val && !form.value.remoteForwards.includes(val)) {
+                form.value.remoteForwards.push(val);
+                newRemoteForward.value = '';
+            }
+        };
+        const removeRemoteForward = (idx) => form.value.remoteForwards.splice(idx, 1);
+
+        const addDynamicForward = () => {
+            let port = newDynamicForward.value.trim();
+            if (port && /^\d+$/.test(port) && !form.value.dynamicForwards.includes(port)) {
+                form.value.dynamicForwards.push(port);
+                newDynamicForward.value = '';
+            }
+        };
+        const removeDynamicForward = (idx) => form.value.dynamicForwards.splice(idx, 1);
+
+        // 生成完整ssh命令
+        const fullCommand = computed(() => {
+            const f = form.value;
+            if (!f.host) return "ssh [缺少主机地址]";
+            let parts = ["ssh"];
+
+            // 端口
+            if (f.port && f.port !== '22') parts.push("-p", f.port);
+            // 私钥
+            if (f.identityFile) parts.push("-i", f.identityFile);
+            // 跳板机
+            if (f.proxyJump) parts.push("-J", f.proxyJump);
+            // 布尔标志
+            if (f.compression) parts.push("-C");
+            if (f.x11) parts.push("-X");
+            if (f.agentForward) parts.push("-A");
+            if (f.pty) parts.push("-t");
+            if (f.verbose) parts.push("-v");
+            if (f.quiet) parts.push("-q");
+            if (f.background) parts.push("-f");
+            // 自定义 -o
+            if (f.customOption) parts.push("-o", `"${f.customOption}"`);
+            // 本地转发 -L
+            f.localForwards.forEach(fw => parts.push("-L", fw));
+            // 远程转发 -R
+            f.remoteForwards.forEach(fw => parts.push("-R", fw));
+            // 动态转发 -D
+            f.dynamicForwards.forEach(port => parts.push("-D", port));
+
+            // 目标: user@host 或 host
+            let target = "";
+            if (f.user && f.user.trim() !== "") target = `${f.user}@${f.host}`;
+            else target = f.host;
+            parts.push(target);
+            // 远程命令
+            if (f.remoteCmd && f.remoteCmd.trim() !== "") {
+                parts.push("--");  // 可选分割，防止选项干扰
+                parts.push(f.remoteCmd);
+            }
+            return parts.join(" ");
+        });
+
+        // 高亮显示
+        const highlightedCommand = computed(() => {
+            let cmd = fullCommand.value;
+            if (cmd === "ssh [缺少主机地址]") return '<span style="color:#e5484d;">⚠️ 请填写主机地址</span>';
+            // 高亮规则
+            return cmd
+                .replace(/^(ssh)/, '<span class="t-cmd">$1</span>')
+                .replace(/ (-p|-i|-J|-L|-R|-D|-o) /g, ' <span class="t-flag">$1</span> ')
+                .replace(/ (-[C X A t v q f]) /g, ' <span class="t-flag">$1</span> ')
+                .replace(/ (-[C X A t v q f])(?= |$)/g, ' <span class="t-flag">$1</span>')
+                .replace(/ (-p|-i|-J|-L|-R|-D|-o)(?= |$)/g, ' <span class="t-flag">$1</span>')
+                .replace(/ ([\w\.\-]+@[\w\.\-]+|[\w\.\-]+)(?= |$)/g, ' <span class="t-userhost">$1</span>')
+                .replace(/ ("[^"]+"|\d+|~\/[^\s]+)/g, ' <span class="t-arg">$1</span>');
+        });
+
+        const copyCmd = async () => {
+            try {
+                await navigator.clipboard.writeText(fullCommand.value);
+                copied.value = true;
+                setTimeout(() => copied.value = false, 2000);
+            } catch(e) {
+                alert("复制失败，可手动复制");
+            }
+        };
+
+        return {
+            form,
+            newLocalForward,
+            newRemoteForward,
+            newDynamicForward,
+            copied,
+            addLocalForward,
+            removeLocalForward,
+            addRemoteForward,
+            removeRemoteForward,
+            addDynamicForward,
+            removeDynamicForward,
+            fullCommand,
+            highlightedCommand,
+            copyCmd,
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

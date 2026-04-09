@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FFmpeg 命令生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;padding:20px;color:#222;}
+.wrap{max-width:760px;margin:0 auto;padding:1rem 0;}
+.page-title{font-size:20px;font-weight:500;margin-bottom:4px;}
+.page-desc{font-size:13px;color:#666;margin-bottom:20px;}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-bottom:12px;}
+.label{font-size:12px;color:#666;margin-bottom:6px;margin-top:10px;}
+.label:first-child{margin-top:0;}
+input,select,textarea{width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;background:#fafafa;color:#222;font-family:inherit;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#888;}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.tag{padding:4px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px;cursor:pointer;background:#f5f5f5;color:#555;user-select:none;transition:all 0.15s;}
+.tag:hover{border-color:#888;color:#222;}
+.tag.on{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.output-block{background:#f8f9fa;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-top:12px;font-family:monospace;font-size:13px;line-height:1.7;word-break:break-all;white-space:pre-wrap;color:#222;min-height:56px;}
+.btn-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+button{padding:7px 14px;border:1px solid #ccc;border-radius:6px;background:transparent;color:#222;font-size:13px;cursor:pointer;font-family:inherit;}
+button:hover{background:#f0f0f0;}
+button:active{transform:scale(0.98);}
+.btn-primary{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.btn-primary:hover{background:#B5D4F4;}
+.section-sep{border:none;border-top:1px solid #eee;margin:10px 0;}
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:6px;}
+.mode-card{border:1px solid #ddd;border-radius:6px;padding:10px;cursor:pointer;background:#fafafa;transition:all 0.15s;}
+.mode-card:hover{border-color:#888;}
+.mode-card.on{background:#E6F1FB;border-color:#185FA5;}
+.mode-card.on .mc-title{color:#0C447C;}
+.mc-title{font-size:13px;font-weight:500;margin-bottom:2px;color:#222;}
+.mc-desc{font-size:11px;color:#888;}
+.hint{font-size:11px;color:#888;margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+<div class="page-title">FFmpeg 命令生成器</div>
+<div class="page-desc">可视化配置视频转换、合并、压缩、裁剪等操作，自动生成 FFmpeg 命令</div>
+
+<div class="card">
+  <div class="label">操作模式</div>
+  <div class="mode-grid" id="modeGrid"></div>
+</div>
+
+<div id="dynamicArea"></div>
+
+<div class="card">
+  <div class="label">通用选项</div>
+  <div class="tags">
+    <span class="tag" data-flag="-y">-y 覆盖输出</span>
+    <span class="tag" data-flag="-v quiet">安静模式</span>
+    <span class="tag" data-flag="-stats">显示进度</span>
+    <span class="tag" data-flag="-hide_banner">隐藏版本头</span>
+    <span class="tag" data-flag="-threads 0">自动多线程</span>
+  </div>
+</div>
+
+<div class="output-block" id="cmdOut">ffmpeg ...</div>
+
+<div class="btn-row">
+  <button class="btn-primary" onclick="copyCmd()">复制命令</button>
+  <button onclick="resetAll()">重置</button>
+</div>
+</div>
+
+<script>
+const MODES=[
+  {id:'convert',title:'格式转换',desc:'转换视频/音频格式'},
+  {id:'compress',title:'压缩视频',desc:'调整码率/质量'},
+  {id:'merge',title:'合并视频',desc:'多文件拼接合一'},
+  {id:'cut',title:'剪切片段',desc:'截取指定时间段'},
+  {id:'resize',title:'调整尺寸',desc:'缩放分辨率'},
+  {id:'extract',title:'提取音频',desc:'从视频提取音频'},
+  {id:'gif',title:'生成 GIF',desc:'视频片段转 GIF'},
+  {id:'watermark',title:'添加水印',desc:'文字或图片水印'},
+];
+
+let state={mode:'convert',flags:new Set(),fields:{}};
+let modeState={};
+
+function renderModes(){
+  const g=document.getElementById('modeGrid');
+  g.innerHTML=MODES.map(m=>`<div class="mode-card${state.mode===m.id?' on':''}" onclick="setMode('${m.id}')"><div class="mc-title">${m.title}</div><div class="mc-desc">${m.desc}</div></div>`).join('');
+}
+
+const TEMPLATES={
+  convert:`<div class="card">
+    <div class="label">输入文件</div>
+    <input id="f_input" placeholder="input.mp4" oninput="buildCmd()">
+    <div class="label" style="margin-top:10px">输出格式</div>
+    <div class="tags" id="fmtTags">
+      <span class="tag on" onclick="pickFmt(this,'mp4')">mp4</span>
+      <span class="tag" onclick="pickFmt(this,'mkv')">mkv</span>
+      <span class="tag" onclick="pickFmt(this,'avi')">avi</span>
+      <span class="tag" onclick="pickFmt(this,'mov')">mov</span>
+      <span class="tag" onclick="pickFmt(this,'webm')">webm</span>
+      <span class="tag" onclick="pickFmt(this,'flv')">flv</span>
+      <span class="tag" onclick="pickFmt(this,'gif')">gif</span>
+      <span class="tag" onclick="pickFmt(this,'mp3')">mp3</span>
+      <span class="tag" onclick="pickFmt(this,'aac')">aac</span>
+      <span class="tag" onclick="pickFmt(this,'wav')">wav</span>
+    </div>
+    <div class="label">视频编码</div>
+    <div class="tags" id="vcTags">
+      <span class="tag on" onclick="pickVc(this,'copy')">copy（无损）</span>
+      <span class="tag" onclick="pickVc(this,'libx264')">H.264</span>
+      <span class="tag" onclick="pickVc(this,'libx265')">H.265</span>
+      <span class="tag" onclick="pickVc(this,'libvpx-vp9')">VP9</span>
+      <span class="tag" onclick="pickVc(this,'none')">无视频</span>
+    </div>
+    <div class="label">音频编码</div>
+    <div class="tags" id="acTags">
+      <span class="tag on" onclick="pickAc(this,'copy')">copy（无损）</span>
+      <span class="tag" onclick="pickAc(this,'aac')">AAC</span>
+      <span class="tag" onclick="pickAc(this,'mp3')">MP3</span>
+      <span class="tag" onclick="pickAc(this,'none')">无音频</span>
+    </div>
+    <div class="label">输出文件名</div>
+    <input id="f_output" placeholder="output.mp4" oninput="buildCmd()">
+  </div>`,
+  compress:`<div class="card">
+    <div class="label">输入文件</div>
+    <input id="f_input" placeholder="input.mp4" oninput="buildCmd()">
+    <div class="label">CRF 质量（18=高质量，28=较小体积，默认23）</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <input type="range" id="f_crf" min="0" max="51" value="23" step="1" oninput="document.getElementById('crfVal').textContent=this.value;buildCmd()">
+      <span id="crfVal" style="font-size:13px;font-weight:500;min-width:24px;">23</span>
+    </div>
+    <div class="label">预设速度</div>
+    <div class="tags" id="presetTags">
+      <span class="tag" onclick="pickPreset(this,'ultrafast')">极速</span>
+      <span class="tag" onclick="pickPreset(this,'fast')">快速</span>
+      <span class="tag on" onclick="pickPreset(this,'medium')">中等</span>
+      <span class="tag" onclick="pickPreset(this,'slow')">慢速（质量更高）</span>
+    </div>
+    <div class="label">分辨率（可选）</div>
+    <div class="tags" id="scaleTags">
+      <span class="tag on" onclick="pickScale(this,'')">保持原分辨率</span>
+      <span class="tag" onclick="pickScale(this,'1920:1080')">1080p</span>
+      <span class="tag" onclick="pickScale(this,'1280:720')">720p</span>
+      <span class="tag" onclick="pickScale(this,'854:480')">480p</span>
+    </div>
+    <div class="label">输出文件名</div>
+    <input id="f_output" placeholder="output_compressed.mp4" oninput="buildCmd()">
+  </div>`,
+  merge:`<div class="card">
+    <div class="label">输入文件列表 <span class="hint">（每行一个文件名，支持中文）</span></div>
+    <textarea id="f_files" rows="5" placeholder="视频一.mp4&#10;视频二.mp4&#10;clip3.mp4" oninput="buildCmd()"></textarea>
+    <div class="hint">将自动生成 filelist.txt 生成命令 + ffmpeg 合并命令</div>
+    <hr class="section-sep">
+    <div class="label">合并方式</div>
+    <div class="tags" id="mergeTags">
+      <span class="tag on" onclick="pickMerge(this,'copy')">无损拼接（参数需一致）</span>
+      <span class="tag" onclick="pickMerge(this,'reencode')">重新编码（参数不同时用）</span>
+    </div>
+    <div id="reencodeOpts" style="display:none;margin-top:10px;">
+      <div class="label">统一分辨率</div>
+      <div class="tags" id="mscaleTags">
+        <span class="tag on" onclick="pickMScale(this,'1920:1080')">1080p</span>
+        <span class="tag" onclick="pickMScale(this,'1280:720')">720p</span>
+        <span class="tag" onclick="pickMScale(this,'854:480')">480p</span>
+      </div>
+    </div>
+    <div class="label">输出文件名</div>
+    <input id="f_output" placeholder="merged_output.mp4" oninput="buildCmd()">
+  </div>`,
+  cut:`<div class="card">
+    <div class="label">输入文件</div>
+    <input id="f_input" placeholder="input.mp4" oninput="buildCmd()">
+    <div class="row2" style="margin-top:10px;">
+      <div><div class="label">开始时间</div><input id="f_start" placeholder="00:01:30 或 90" oninput="buildCmd()"></div>
+      <div><div class="label">持续时长（-t）或结束时间（-to）</div><input id="f_dur" placeholder="00:02:00" oninput="buildCmd()"></div>
+    </div>
+    <div class="label">截取方式</div>
+    <div class="tags" id="cutModeTags">
+      <span class="tag on" onclick="pickCutMode(this,'-t')">-t 持续时长</span>
+      <span class="tag" onclick="pickCutMode(this,'-to')">-to 结束时间</span>
+    </div>
+    <div class="label">视频编码</div>
+    <div class="tags" id="cutVcTags">
+      <span class="tag on" onclick="pickCutVc(this,'copy')">copy（快速无损）</span>
+      <span class="tag" onclick="pickCutVc(this,'libx264')">重新编码（精确帧）</span>
+    </div>
+    <div class="label">输出文件名</div>
+    <input id="f_output" placeholder="clip.mp4" oninput="buildCmd()">
+  </div>`,
+  resize:`<div class="card">
+    <div class="label">输入文件</div>
+    <input id="f_input" placeholder="input.mp4" oninput="buildCmd()">
+    <div class="label">目标分辨率</div>
+    <div class="tags" id="rszTags">
+      <span class="tag" onclick="pickRsz(this,'3840:2160')">4K</span>
+      <span class="tag on" onclick="pickRsz(this,'1920:1080')">1080p</span>
+      <span class="tag" onclick="pickRsz(this,'1280:720')">720p</span>
+      <span class="tag" onclick="pickRsz(this,'854:480')">480p</span>
+      <span class="tag" onclick="pickRsz(this,'custom')">自定义</span>
+    </div>
+    <div id="customSzRow" style="display:none;margin-top:8px;">
+      <div class="row2">
+        <div><div class="label">宽度</div><input id="f_w" placeholder="1920" oninput="buildCmd()"></div>
+        <div><div class="label">高度（-1 保持比例）</div><input id="f_h" placeholder="-1" oninput="buildCmd()"></div>
+      </div>
+    </div>
+    <div class="label">保持宽高比</div>
+    <div class="tags" id="aspectTags">
+      <span class="tag on" onclick="pickAspect(this,'pad')">加黑边填充</span>
+      <span class="tag" onclick="pickAspect(this,'crop')">裁剪填充</span>
+      <span class="tag" onclick="pickAspect(this,'stretch')">拉伸（可能变形）</span>
+    </div>
+    <div class="label">输出文件名</div>
+    <input id="f_output" placeholder="output_resized.mp4" oninput="buildCmd()">
+  </div>`,
+  extract:`<div class="card">
+    <div class="label">输入文件</div>
+    <input id="f_input" placeholder="input.mp4" oninput="buildCmd()">
+    <div class="label">音频格式</div>
+    <div class="tags" id="audFmtTags">
+      <span class="tag on" onclick="pickAudFmt(this,'mp3')">MP3</span>
+      <span class="tag" onclick="pickAudFmt(this,'aac')">AAC</span>
+      <span class="tag" onclick="pickAudFmt(this,'wav')">WAV</span>
+      <span class="tag" onclick="pickAudFmt(this,'flac')">FLAC</span>
+      <span class="tag" onclick="pickAudFmt(this,'ogg')">OGG</span>
+    </div>
+    <div class="label">音频质量</div>
+    <div class="tags" id="audQTags">
+      <span class="tag on" onclick="pickAudQ(this,'copy')">copy（无损）</span>
+      <span class="tag" onclick="pickAudQ(this,'192k')">192kbps</span>
+      <span class="tag" onclick="pickAudQ(this,'320k')">320kbps</span>
+    </div>
+    <div class="label">输出文件名</div>
+    <input id="f_output" placeholder="audio.mp3" oninput="buildCmd()">
+  </div>`,
+  gif:`<div class="card">
+    <div class="label">输入文件</div>
+    <input id="f_input" placeholder="input.mp4" oninput="buildCmd()">
+    <div class="row2" style="margin-top:10px;">
+      <div><div class="label">开始时间</div><input id="f_start" placeholder="00:00:05" oninput="buildCmd()"></div>
+      <div><div class="label">持续时长（秒）</div><input id="f_dur" placeholder="3" oninput="buildCmd()"></div>
+    </div>
+    <div class="label">GIF 宽度（高度自动按比例）</div>
+    <div class="tags" id="gifWTags">
+      <span class="tag" onclick="pickGifW(this,'320')">320px</span>
+      <span class="tag on" onclick="pickGifW(this,'480')">480px</span>
+      <span class="tag" onclick="pickGifW(this,'640')">640px</span>
+      <span class="tag" onclick="pickGifW(this,'original')">原始宽度</span>
+    </div>
+    <div class="label">帧率</div>
+    <div class="tags" id="gifFpsTags">
+      <span class="tag" onclick="pickGifFps(this,'10')">10fps</span>
+      <span class="tag on" onclick="pickGifFps(this,'15')">15fps</span>
+      <span class="tag" onclick="pickGifFps(this,'24')">24fps</span>
+    </div>
+    <div class="label">输出文件名</div>
+    <input id="f_output" placeholder="output.gif" oninput="buildCmd()">
+  </div>`,
+  watermark:`<div class="card">
+    <div class="label">输入文件</div>
+    <input id="f_input" placeholder="input.mp4" oninput="buildCmd()">
+    <div class="label">水印类型</div>
+    <div class="tags" id="wmTypeTags">
+      <span class="tag on" onclick="pickWmType(this,'text')">文字水印</span>
+      <span class="tag" onclick="pickWmType(this,'image')">图片水印</span>
+    </div>
+    <div id="textWmArea">
+      <div class="label">水印文字</div>
+      <input id="f_wmtext" placeholder="版权所有" oninput="buildCmd()">
+      <div class="label">文字大小</div>
+      <div class="tags" id="wmSizeTags">
+        <span class="tag" onclick="pickWmSize(this,'24')">小</span>
+        <span class="tag on" onclick="pickWmSize(this,'36')">中</span>
+        <span class="tag" onclick="pickWmSize(this,'48')">大</span>
+      </div>
+    </div>
+    <div id="imgWmArea" style="display:none;">
+      <div class="label">水印图片路径</div>
+      <input id="f_wmimg" placeholder="watermark.png" oninput="buildCmd()">
+    </div>
+    <div class="label">水印位置</div>
+    <div class="tags" id="wmPosTags">
+      <span class="tag" onclick="pickWmPos(this,'10:10')">左上</span>
+      <span class="tag" onclick="pickWmPos(this,'W-tw-10:10')">右上</span>
+      <span class="tag on" onclick="pickWmPos(this,'10:H-th-10')">左下</span>
+      <span class="tag" onclick="pickWmPos(this,'W-tw-10:H-th-10')">右下</span>
+      <span class="tag" onclick="pickWmPos(this,'(W-tw)/2:(H-th)/2')">居中</span>
+    </div>
+    <div class="label">输出文件名</div>
+    <input id="f_output" placeholder="output_watermark.mp4" oninput="buildCmd()">
+  </div>`,
+};
+
+function setMode(m){
+  state.mode=m;
+  modeState={fmt:'mp4',vc:'copy',ac:'copy',crf:23,preset:'medium',scale:'',mergeMode:'copy',mscale:'1920:1080',cutMode:'-t',cutVc:'copy',rsz:'1920:1080',aspect:'pad',audFmt:'mp3',audQ:'copy',gifW:'480',gifFps:'15',wmType:'text',wmSize:'36',wmPos:'10:H-th-10'};
+  renderModes();
+  document.getElementById('dynamicArea').innerHTML=TEMPLATES[m]||'';
+  buildCmd();
+}
+
+function g(id){return document.getElementById(id);}
+function val(id){const e=g(id);return e?e.value.trim():'';}
+
+function pickOne(groupId,el,key,value){
+  document.querySelectorAll('#'+groupId+' .tag').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  modeState[key]=value;
+  buildCmd();
+}
+function pickFmt(el,v){pickOne('fmtTags',el,'fmt',v);}
+function pickVc(el,v){pickOne('vcTags',el,'vc',v);}
+function pickAc(el,v){pickOne('acTags',el,'ac',v);}
+function pickPreset(el,v){pickOne('presetTags',el,'preset',v);}
+function pickScale(el,v){pickOne('scaleTags',el,'scale',v);buildCmd();}
+function pickMerge(el,v){
+  pickOne('mergeTags',el,'mergeMode',v);
+  const ro=g('reencodeOpts');
+  if(ro)ro.style.display=v==='reencode'?'block':'none';
+  buildCmd();
+}
+function pickMScale(el,v){pickOne('mscaleTags',el,'mscale',v);}
+function pickCutMode(el,v){pickOne('cutModeTags',el,'cutMode',v);}
+function pickCutVc(el,v){pickOne('cutVcTags',el,'cutVc',v);}
+function pickRsz(el,v){
+  pickOne('rszTags',el,'rsz',v);
+  const row=g('customSzRow');
+  if(row)row.style.display=v==='custom'?'block':'none';
+  buildCmd();
+}
+function pickAspect(el,v){pickOne('aspectTags',el,'aspect',v);}
+function pickAudFmt(el,v){pickOne('audFmtTags',el,'audFmt',v);}
+function pickAudQ(el,v){pickOne('audQTags',el,'audQ',v);}
+function pickGifW(el,v){pickOne('gifWTags',el,'gifW',v);}
+function pickGifFps(el,v){pickOne('gifFpsTags',el,'gifFps',v);}
+function pickWmType(el,v){
+  pickOne('wmTypeTags',el,'wmType',v);
+  const ta=g('textWmArea'),ia=g('imgWmArea');
+  if(ta)ta.style.display=v==='text'?'block':'none';
+  if(ia)ia.style.display=v==='image'?'block':'none';
+  buildCmd();
+}
+function pickWmSize(el,v){pickOne('wmSizeTags',el,'wmSize',v);}
+function pickWmPos(el,v){pickOne('wmPosTags',el,'wmPos',v);}
+
+function getFlags(){
+  const f=[];
+  document.querySelectorAll('.tag[data-flag].on').forEach(t=>f.push(t.dataset.flag));
+  return f;
+}
+
+function buildCmd(){
+  const m=state.mode,ms=modeState;
+  const inp=val('f_input'),out=val('f_output');
+  const flags=getFlags();
+  let cmd='';
+  if(m==='convert'){
+    const vc=ms.vc==='none'?'-vn':`-c:v ${ms.vc}`;
+    const ac=ms.ac==='none'?'-an':`-c:a ${ms.ac}`;
+    const outname=out||(inp?inp.replace(/\.[^.]+$/,'.')+ms.fmt:`output.${ms.fmt}`);
+    cmd=`ffmpeg${flags.length?' '+flags.join(' '):''}${inp?' -i "'+inp+'"':' -i "input.mp4"'} ${vc} ${ac} "${outname}"`;
+  } else if(m==='compress'){
+    const crf=g('f_crf')?g('f_crf').value:23;
+    const scaleF=ms.scale?`-vf scale=${ms.scale} `:'';
+    cmd=`ffmpeg${flags.length?' '+flags.join(' '):''}${inp?' -i "'+inp+'"':' -i "input.mp4"'} -c:v libx264 -crf ${crf} -preset ${ms.preset} ${scaleF}-c:a copy "${out||'output_compressed.mp4'}"`;
+  } else if(m==='merge'){
+    const files=(val('f_files')||'').split('\n').filter(f=>f.trim());
+    const listGen=files.map(f=>`echo file '${f}' >> filelist.txt`).join('\n');
+    if(ms.mergeMode==='copy'){
+      cmd=(files.length?listGen+'\n\n':'# 先生成 filelist.txt\n\n')+`ffmpeg${flags.length?' '+flags.join(' '):''} -f concat -safe 0 -i filelist.txt -c copy "${out||'merged.mp4'}"`;
+    } else {
+      const sc=`-vf "scale=${ms.mscale}:force_original_aspect_ratio=decrease,pad=${ms.mscale}:(ow-iw)/2:(oh-ih)/2"`;
+      cmd=(files.length?listGen+'\n\n':'# 先生成 filelist.txt\n\n')+`ffmpeg${flags.length?' '+flags.join(' '):''} -f concat -safe 0 -i filelist.txt -c:v libx264 -c:a aac ${sc} -r 30 "${out||'merged.mp4'}"`;
+    }
+  } else if(m==='cut'){
+    const ss=val('f_start'),dur=val('f_dur');
+    const ssF=ss?` -ss ${ss}`:'';
+    const durF=dur?` ${ms.cutMode} ${dur}`:'';
+    const vc=ms.cutVc==='copy'?'-c copy':'-c:v libx264 -c:a aac';
+    cmd=`ffmpeg${flags.length?' '+flags.join(' '):''}${ssF}${inp?' -i "'+inp+'"':' -i "input.mp4"'}${durF} ${vc} "${out||'clip.mp4'}"`;
+  } else if(m==='resize'){
+    let scaleStr='';
+    if(ms.rsz==='custom'){
+      const w=val('f_w')||'1920',h=val('f_h')||'-1';
+      if(ms.aspect==='pad')scaleStr=`scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`;
+      else if(ms.aspect==='crop')scaleStr=`scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
+      else scaleStr=`scale=${w}:${h}`;
+    } else {
+      const[rw,rh]=ms.rsz.split(':');
+      if(ms.aspect==='pad')scaleStr=`scale=${rw}:${rh}:force_original_aspect_ratio=decrease,pad=${rw}:${rh}:(ow-iw)/2:(oh-ih)/2`;
+      else if(ms.aspect==='crop')scaleStr=`scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh}`;
+      else scaleStr=`scale=${rw}:${rh}`;
+    }
+    cmd=`ffmpeg${flags.length?' '+flags.join(' '):''}${inp?' -i "'+inp+'"':' -i "input.mp4"'} -vf "${scaleStr}" -c:a copy "${out||'output_resized.mp4'}"`;
+  } else if(m==='extract'){
+    const qF=ms.audQ==='copy'?'-c:a copy':`-b:a ${ms.audQ}`;
+    cmd=`ffmpeg${flags.length?' '+flags.join(' '):''}${inp?' -i "'+inp+'"':' -i "input.mp4"'} -vn ${qF} "${out||'audio.'+ms.audFmt}"`;
+  } else if(m==='gif'){
+    const ss=val('f_start'),dur=val('f_dur');
+    const ssF=ss?` -ss ${ss}`:'';
+    const durF=dur?` -t ${dur}`:'';
+    const wScale=ms.gifW==='original'?'iw':ms.gifW;
+    const palette=`ffmpeg -i "${inp||'input.mp4'}" -vf "fps=${ms.gifFps},scale=${wScale}:-1:flags=lanczos,palettegen" palette.png\n`;
+    cmd=palette+`ffmpeg${ssF}${inp?' -i "'+inp+'"':' -i "input.mp4"'}${durF} -i palette.png -lavfi "fps=${ms.gifFps},scale=${wScale}:-1:flags=lanczos[x];[x][1:v]paletteuse" "${out||'output.gif'}"`;
+  } else if(m==='watermark'){
+    if(ms.wmType==='text'){
+      const txt=val('f_wmtext')||'水印';
+      cmd=`ffmpeg${flags.length?' '+flags.join(' '):''}${inp?' -i "'+inp+'"':' -i "input.mp4"'} -vf "drawtext=text='${txt}':fontsize=${ms.wmSize}:fontcolor=white@0.8:x=${ms.wmPos.split(':')[0]}:y=${ms.wmPos.split(':')[1]}" -c:a copy "${out||'output_wm.mp4'}"`;
+    } else {
+      const wimg=val('f_wmimg')||'watermark.png';
+      const[px,py]=ms.wmPos.replace(/W-tw/g,'main_w-overlay_w').replace(/H-th/g,'main_h-overlay_h').split(':');
+      cmd=`ffmpeg${flags.length?' '+flags.join(' '):''}${inp?' -i "'+inp+'"':' -i "input.mp4"'} -i "${wimg}" -filter_complex "overlay=${px}:${py}" -c:a copy "${out||'output_wm.mp4'}"`;
+    }
+  }
+  const el=g('cmdOut');
+  if(el)el.textContent=cmd||'ffmpeg ...';
+}
+
+document.querySelectorAll('.tag[data-flag]').forEach(t=>{
+  t.addEventListener('click',function(){this.classList.toggle('on');buildCmd();});
+});
+
+async function copyCmd(){
+  const txt=g('cmdOut').textContent;
+  try{
+    await navigator.clipboard.writeText(txt);
+    const el=g('cmdOut');
+    const orig=el.style.background;
+    el.style.background='#d4edda';
+    setTimeout(()=>{el.style.background=orig;},800);
+  }catch{alert('请手动复制');}
+}
+
+function resetAll(){setMode('convert');}
+
+setMode('convert');
+</script>
+</body>
+</html>

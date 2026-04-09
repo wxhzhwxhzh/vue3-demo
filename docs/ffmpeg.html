@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFmpeg 命令生成器 · 商务紧凑版</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --surface-subtle: #f8fafc;
+            --border: #e6edf4;
+            --border-strong: #cbd5e1;
+            --text: #1e293b;
+            --text-light: #5b6e8c;
+            --muted: #7e8b9f;
+            --accent: #1e6fdf;
+            --accent-dark: #1557b0;
+            --accent-soft: #eef4ff;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            --radius: 8px;
+            --radius-sm: 5px;
+            --mono: 'JetBrains Mono', monospace;
+            --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            font-size: 13px;          /* 基础字体稍小 */
+            min-height: 100vh;
+            padding: 1.5rem 1.2rem 3rem;
+            line-height: 1.4;
+        }
+
+        #app {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        /* 头部紧凑 */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--accent);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-icon svg {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: white;
+            stroke-width: 1.6;
+        }
+
+        .logo-title {
+            font-family: var(--mono);
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .header-desc {
+            font-size: 0.65rem;
+            font-weight: 500;
+            color: var(--muted);
+            background: var(--surface-subtle);
+            padding: 0.2rem 0.6rem;
+            border-radius: 30px;
+        }
+
+        /* 卡片紧凑间距 */
+        .panel {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            padding: 1rem 1.2rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border);
+            transition: box-shadow 0.2s ease;
+        }
+
+        .section-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .section-label .dot {
+            width: 5px;
+            height: 5px;
+            background: var(--accent);
+            border-radius: 50%;
+        }
+
+        .sub-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 0.9rem 0 0.6rem 0;
+        }
+
+        .field-label {
+            font-size: 0.68rem;
+            font-weight: 500;
+            color: var(--text-light);
+            margin-bottom: 0.3rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.7rem;
+        }
+        @media (max-width: 680px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        input, select {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            padding: 0.45rem 0.7rem;
+            width: 100%;
+            outline: none;
+            transition: all 0.2s;
+        }
+        input:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(30,111,223,0.1);
+        }
+
+        .chip-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 40px;
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            cursor: pointer;
+            background: var(--surface);
+            color: var(--text-light);
+            transition: all 0.2s;
+        }
+        .chip:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .chip.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 0.8rem 0;
+        }
+
+        .inline-row {
+            display: flex;
+            gap: 0.6rem;
+            align-items: flex-end;
+        }
+        .inline-row .field-label { margin-bottom: 0; }
+        
+        /* 额外参数标签区 */
+        .extra-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.6rem;
+        }
+        .extra-tag {
+            background: var(--surface-subtle);
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            padding: 0.2rem 0.7rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .extra-tag .rm {
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 0.9rem;
+            line-height: 1;
+        }
+        .extra-tag .rm:hover { color: #e5484d; }
+
+        .output-panel {
+            margin-top: 1.5rem;
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 1rem 1.2rem;
+            box-shadow: var(--shadow-md);
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.8rem;
+        }
+        .output-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+        }
+        .copy-btn {
+            background: var(--accent);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-family: var(--sans);
+            font-size: 0.68rem;
+            font-weight: 500;
+            padding: 0.3rem 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover { background: var(--accent-dark); }
+        .copy-btn.copied { background: #2c8c5c; }
+
+        .command-text {
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            line-height: 1.6;
+            background: var(--surface-subtle);
+            padding: 0.8rem 1rem;
+            border-radius: var(--radius-sm);
+            border-left: 3px solid var(--accent);
+            word-break: break-all;
+            white-space: pre-wrap;
+            color: #0f172a;
+        }
+        .t-cmd  { color: #1e293b; font-weight: 600; }
+        .t-flag { color: #e67c1f; font-weight: 500; }
+        .t-arg  { color: var(--accent); font-weight: 500; }
+        .t-file { color: #2f7b5c; font-weight: 500; }
+
+        .hint {
+            background: #fef9e6;
+            border-left: 3px solid #e6b12e;
+            border-radius: 4px;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.68rem;
+            color: #8a6300;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="header">
+        <div class="logo-wrap">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                    <polygon points="9 8 15 12 9 16 9 8" fill="white" stroke="white"></polygon>
+                </svg>
+            </div>
+            <div class="logo-title">ffmpeg</div>
+        </div>
+        <div class="header-desc">高效转码 · 命令生成器</div>
+    </div>
+
+    <!-- 输入输出 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>文件与基础</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">输入文件</div>
+                <input v-model="form.inputFile" placeholder="input.mp4 / video.mkv">
+            </div>
+            <div>
+                <div class="field-label">输出文件</div>
+                <input v-model="form.outputFile" placeholder="output.mp4">
+            </div>
+        </div>
+        <div class="grid-2" style="margin-top: 0.6rem;">
+            <div>
+                <div class="field-label">起始时间 ( -ss )</div>
+                <input v-model="form.startTime" placeholder="00:00:05 或 30">
+            </div>
+            <div>
+                <div class="field-label">持续时间 ( -t )</div>
+                <input v-model="form.duration" placeholder="10 (秒) 或 00:00:10">
+            </div>
+        </div>
+        <div class="chip-group" style="margin-top: 0.5rem;">
+            <span class="chip" :class="{ active: form.overwrite }" @click="form.overwrite = !form.overwrite">-y 覆盖输出</span>
+            <span class="chip" :class="{ active: form.fastStart }" @click="form.fastStart = !form.fastStart">-movflags +faststart</span>
+        </div>
+    </div>
+
+    <!-- 视频选项 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>视频参数</div>
+        <div class="grid-3">
+            <div>
+                <div class="field-label">视频编码器</div>
+                <select v-model="form.vcodec">
+                    <option value="">自动 (copy)</option>
+                    <option value="libx264">H.264 (libx264)</option>
+                    <option value="libx265">H.265 (libx265)</option>
+                    <option value="libvpx-vp9">VP9</option>
+                    <option value="mpeg4">MPEG-4</option>
+                </select>
+            </div>
+            <div>
+                <div class="field-label">CRF (质量)</div>
+                <input v-model="form.crf" placeholder="23 (默认) 0-51">
+            </div>
+            <div>
+                <div class="field-label">视频码率</div>
+                <input v-model="form.videoBitrate" placeholder="1M / 2000k">
+            </div>
+        </div>
+        <div class="grid-3" style="margin-top: 0.5rem;">
+            <div>
+                <div class="field-label">分辨率 (宽x高)</div>
+                <input v-model="form.resolution" placeholder="1920x1080">
+            </div>
+            <div>
+                <div class="field-label">帧率 (fps)</div>
+                <input v-model="form.fps" placeholder="30">
+            </div>
+            <div>
+                <div class="field-label">预设 (preset)</div>
+                <select v-model="form.preset">
+                    <option value="">默认</option>
+                    <option value="ultrafast">ultrafast</option>
+                    <option value="veryfast">veryfast</option>
+                    <option value="fast">fast</option>
+                    <option value="medium">medium</option>
+                    <option value="slow">slow</option>
+                </select>
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div class="chip-group">
+            <span class="chip" :class="{ active: form.vn }" @click="form.vn = !form.vn">-vn 禁用视频</span>
+            <span class="chip" :class="{ active: form.pixFmt }" @click="togglePixFmt">像素格式</span>
+        </div>
+        <div v-if="form.pixFmtEnabled" style="margin-top: 0.5rem;">
+            <input v-model="form.pixFmtValue" placeholder="yuv420p, yuv422p, nv12">
+        </div>
+    </div>
+
+    <!-- 音频选项 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>音频参数</div>
+        <div class="grid-3">
+            <div>
+                <div class="field-label">音频编码器</div>
+                <select v-model="form.acodec">
+                    <option value="">自动 (copy)</option>
+                    <option value="aac">AAC</option>
+                    <option value="mp3">MP3 (libmp3lame)</option>
+                    <option value="opus">Opus</option>
+                </select>
+            </div>
+            <div>
+                <div class="field-label">音频码率</div>
+                <input v-model="form.audioBitrate" placeholder="128k">
+            </div>
+            <div>
+                <div class="field-label">采样率</div>
+                <input v-model="form.audioRate" placeholder="44100 / 48000">
+            </div>
+        </div>
+        <div class="chip-group" style="margin-top: 0.5rem;">
+            <span class="chip" :class="{ active: form.an }" @click="form.an = !form.an">-an 禁用音频</span>
+            <span class="chip" :class="{ active: form.volFilter }" @click="form.volFilter = !form.volFilter">音量增益 (dB)</span>
+        </div>
+        <div v-if="form.volFilter" style="margin-top: 0.5rem;">
+            <input v-model="form.volumeValue" placeholder="音量倍数 1.5 或 dB (volume=2.0)">
+        </div>
+    </div>
+
+    <!-- 滤镜 & 旋转 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>滤镜与旋转</div>
+        <div class="grid-2">
+            <div>
+                <div class="field-label">旋转方向</div>
+                <select v-model="form.rotate">
+                    <option value="">无旋转</option>
+                    <option value="90">顺时针90°</option>
+                    <option value="180">旋转180°</option>
+                    <option value="270">逆时针90°</option>
+                    <option value="hflip">水平翻转 (hflip)</option>
+                    <option value="vflip">垂直翻转 (vflip)</option>
+                </select>
+            </div>
+            <div>
+                <div class="field-label">裁剪 (crop)</div>
+                <input v-model="form.cropFilter" placeholder="w:h:x:y  例如 640:480:100:100">
+            </div>
+        </div>
+        <div class="sub-label" style="margin-top:0.6rem;">附加滤镜 (-vf)</div>
+        <div class="inline-row">
+            <input v-model="newFilter" placeholder="eq=brightness=0.1, scale=1280:720" style="flex:1">
+            <button class="add-btn" @click="addFilter">+ 添加</button>
+        </div>
+        <div class="extra-tags" v-if="form.extraFilters.length">
+            <span class="extra-tag" v-for="(flt, idx) in form.extraFilters" :key="idx">
+                {{ flt }}<span class="rm" @click="removeFilter(idx)">×</span>
+            </span>
+        </div>
+        <div class="hint" v-if="form.rotate !== '' || form.cropFilter || form.extraFilters.length">
+            🔧 滤镜链自动合并为 -vf "..."
+        </div>
+    </div>
+
+    <!-- 额外全局参数 -->
+    <div class="panel">
+        <div class="section-label"><span class="dot"></span>额外参数</div>
+        <div class="inline-row">
+            <input v-model="newExtraArg" placeholder="-threads 4 -map 0" style="flex:1">
+            <button class="add-btn" @click="addExtraArg">+ 添加</button>
+        </div>
+        <div class="extra-tags" v-if="form.extraArgs.length">
+            <span class="extra-tag" v-for="(arg, idx) in form.extraArgs" :key="'arg'+idx">
+                {{ arg }}<span class="rm" @click="removeExtraArg(idx)">×</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- 输出命令 -->
+    <div class="output-panel">
+        <div class="output-header">
+            <div class="output-label">生成的 FFmpeg 命令</div>
+            <button class="copy-btn" :class="{ copied: copied }" @click="copyCmd">
+                {{ copied ? '✓ 已复制' : '复制' }}
+            </button>
+        </div>
+        <div class="command-text" v-html="highlightedCmd"></div>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed } = Vue;
+
+createApp({
+    setup() {
+        const form = ref({
+            inputFile: '',
+            outputFile: '',
+            startTime: '',
+            duration: '',
+            overwrite: false,
+            fastStart: false,
+            vcodec: '',
+            crf: '',
+            videoBitrate: '',
+            resolution: '',
+            fps: '',
+            preset: '',
+            vn: false,
+            pixFmtEnabled: false,
+            pixFmtValue: 'yuv420p',
+            acodec: '',
+            audioBitrate: '',
+            audioRate: '',
+            an: false,
+            volFilter: false,
+            volumeValue: '1.0',
+            rotate: '',
+            cropFilter: '',
+            extraFilters: [],    // 用户自定义滤镜字符串
+            extraArgs: [],       // 其他全局参数
+        });
+
+        const newFilter = ref('');
+        const newExtraArg = ref('');
+        const copied = ref(false);
+
+        const addFilter = () => {
+            let v = newFilter.value.trim();
+            if (v && !form.value.extraFilters.includes(v)) {
+                form.value.extraFilters.push(v);
+                newFilter.value = '';
+            }
+        };
+        const removeFilter = (idx) => form.value.extraFilters.splice(idx, 1);
+        const addExtraArg = () => {
+            let v = newExtraArg.value.trim();
+            if (v && !form.value.extraArgs.includes(v)) {
+                form.value.extraArgs.push(v);
+                newExtraArg.value = '';
+            }
+        };
+        const removeExtraArg = (idx) => form.value.extraArgs.splice(idx, 1);
+        const togglePixFmt = () => {
+            form.value.pixFmtEnabled = !form.value.pixFmtEnabled;
+            if (!form.value.pixFmtEnabled) form.value.pixFmtValue = '';
+        };
+
+        // 构建滤镜字符串
+        const buildVideoFilter = () => {
+            let filters = [];
+            // 缩放 (如果分辨率不为空)
+            if (form.value.resolution && form.value.resolution.trim() !== "") {
+                filters.push(`scale=${form.value.resolution}`);
+            }
+            // 旋转
+            const rot = form.value.rotate;
+            if (rot === '90') filters.push("transpose=1");
+            else if (rot === '180') filters.push("transpose=2,transpose=2");
+            else if (rot === '270') filters.push("transpose=2");
+            else if (rot === 'hflip') filters.push("hflip");
+            else if (rot === 'vflip') filters.push("vflip");
+            // 裁剪
+            if (form.value.cropFilter && form.value.cropFilter.trim() !== "") {
+                filters.push(`crop=${form.value.cropFilter}`);
+            }
+            // 额外自定义滤镜
+            if (form.value.extraFilters.length) {
+                filters.push(...form.value.extraFilters);
+            }
+            return filters.filter(f => f).join(",");
+        };
+
+        // 完整命令生成
+        const fullCommand = computed(() => {
+            const f = form.value;
+            if (!f.inputFile) return "ffmpeg [缺少输入文件]";
+            let parts = ["ffmpeg"];
+            // 覆盖
+            if (f.overwrite) parts.push("-y");
+            // 起始时间 / 持续时间
+            if (f.startTime && f.startTime.trim()) parts.push("-ss", f.startTime);
+            if (f.duration && f.duration.trim()) parts.push("-t", f.duration);
+            // 输入文件
+            parts.push("-i", f.inputFile);
+            // 视频选项
+            if (f.vn) parts.push("-vn");
+            if (f.vcodec) {
+                parts.push("-c:v", f.vcodec);
+            } else if (!f.vn && f.vcodec === "") {
+                // 如果没选编码器且没有禁用视频，默认复制？但通常不加c:v copy 当用户不指定时不加，避免冲突，但提供选项？不加，保留默认ffmpeg行为
+                // 不加任何参数
+            }
+            if (f.crf && f.crf.trim() !== "" && (f.vcodec === 'libx264' || f.vcodec === 'libx265')) {
+                parts.push("-crf", f.crf);
+            }
+            if (f.videoBitrate && f.videoBitrate.trim() !== "") parts.push("-b:v", f.videoBitrate);
+            if (f.fps && f.fps.trim() !== "") parts.push("-r", f.fps);
+            if (f.preset && f.preset !== "") parts.push("-preset", f.preset);
+            if (f.pixFmtEnabled && f.pixFmtValue) parts.push("-pix_fmt", f.pixFmtValue);
+            // 滤镜 -vf
+            const vf = buildVideoFilter();
+            if (vf) parts.push("-vf", `"${vf}"`);
+            // 音频选项
+            if (f.an) parts.push("-an");
+            if (f.acodec) parts.push("-c:a", f.acodec);
+            if (f.audioBitrate && f.audioBitrate.trim()) parts.push("-b:a", f.audioBitrate);
+            if (f.audioRate && f.audioRate.trim()) parts.push("-ar", f.audioRate);
+            if (f.volFilter && f.volumeValue.trim()) {
+                let volVal = f.volumeValue.trim();
+                if (!isNaN(parseFloat(volVal)) && !volVal.includes("=")) volVal = `volume=${volVal}`;
+                parts.push("-af", `"${volVal}"`);
+            }
+            // 快速启动
+            if (f.fastStart) parts.push("-movflags", "+faststart");
+            // 额外参数
+            if (f.extraArgs.length) parts.push(...f.extraArgs);
+            // 输出文件
+            if (f.outputFile) parts.push(f.outputFile);
+            else parts.push("[未指定输出文件]");
+            return parts.join(" ");
+        });
+
+        const highlightedCmd = computed(() => {
+            let cmd = fullCommand.value;
+            if (cmd === "ffmpeg [缺少输入文件]") return '<span style="color:#e5484d;">⚠️ 请输入输入文件路径</span>';
+            return cmd
+                .replace(/^(ffmpeg)/, '<span class="t-cmd">$1</span>')
+                .replace(/ (-i|-ss|-t|-c:v|-c:a|-b:v|-b:a|-r|-preset|-crf|-pix_fmt|-vf|-af|-movflags|-y|-vn|-an|-ar) /g, ' <span class="t-flag">$1</span> ')
+                .replace(/ (-i|-ss|-t|-c:v|-c:a|-b:v|-b:a|-r|-preset|-crf|-pix_fmt|-vf|-af|-movflags|-y|-vn|-an|-ar)(?= |$)/g, ' <span class="t-flag">$1</span>')
+                .replace(/ ("[^"]+"|'[^']+')/g, ' <span class="t-arg">$1</span>')
+                .replace(/ ([\w\-. /\\]+\.\w+)/g, ' <span class="t-file">$1</span>');
+        });
+
+        const copyCmd = async () => {
+            try {
+                await navigator.clipboard.writeText(fullCommand.value);
+                copied.value = true;
+                setTimeout(() => copied.value = false, 2000);
+            } catch(e) { alert("复制失败，可手动复制"); }
+        };
+
+        return {
+            form,
+            newFilter,
+            newExtraArg,
+            copied,
+            addFilter,
+            removeFilter,
+            addExtraArg,
+            removeExtraArg,
+            togglePixFmt,
+            fullCommand,
+            highlightedCmd,
+            copyCmd,
+        };
+    }
+}).mount('#app');
+</script>
+<style>
+    /* 辅助样式 */
+    .add-btn {
+        background: var(--accent);
+        border: none;
+        border-radius: 5px;
+        color: white;
+        font-family: var(--sans);
+        font-weight: 500;
+        font-size: 0.7rem;
+        padding: 0 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        height: 32px;
+        white-space: nowrap;
+    }
+    .add-btn:hover {
+        background: var(--accent-dark);
+        transform: translateY(-1px);
+    }
+    input, select {
+        font-size: 0.72rem;
+    }
+    .chip, .extra-tag {
+        font-size: 0.68rem;
+    }
+</style>
+</body>
+</html>
