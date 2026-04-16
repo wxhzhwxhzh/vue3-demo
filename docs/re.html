@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>正则表达式生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;padding:20px;color:#222;}
+.wrap{max-width:800px;margin:0 auto;padding:1rem 0;}
+.page-title{font-size:20px;font-weight:500;margin-bottom:4px;}
+.page-desc{font-size:13px;color:#666;margin-bottom:20px;}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-bottom:12px;}
+.label{font-size:12px;color:#666;margin-bottom:6px;margin-top:10px;}
+.label:first-child{margin-top:0;}
+input,select,textarea{width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;background:#fafafa;color:#222;font-family:inherit;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#888;}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.tag{padding:4px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px;cursor:pointer;background:#f5f5f5;color:#555;user-select:none;transition:all 0.15s;}
+.tag:hover{border-color:#888;color:#222;}
+.tag.on{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.output-block{background:#f8f9fa;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-top:12px;font-family:monospace;font-size:13px;line-height:1.7;word-break:break-all;white-space:pre-wrap;color:#222;min-height:56px;}
+.btn-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+button{padding:7px 14px;border:1px solid #ccc;border-radius:6px;background:transparent;color:#222;font-size:13px;cursor:pointer;font-family:inherit;}
+button:hover{background:#f0f0f0;}
+button:active{transform:scale(0.98);}
+.btn-primary{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.btn-primary:hover{background:#B5D4F4;}
+.section-sep{border:none;border-top:1px solid #eee;margin:10px 0;}
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:6px;}
+.mode-card{border:1px solid #ddd;border-radius:6px;padding:10px;cursor:pointer;background:#fafafa;transition:all 0.15s;}
+.mode-card:hover{border-color:#888;}
+.mode-card.on{background:#E6F1FB;border-color:#185FA5;}
+.mode-card.on .mc-title{color:#0C447C;}
+.mc-title{font-size:13px;font-weight:500;margin-bottom:2px;color:#222;}
+.mc-desc{font-size:11px;color:#888;}
+.hint{font-size:11px;color:#888;margin-top:4px;}
+.preview-block{margin-top:10px;border:1px solid #eee;border-radius:6px;padding:10px;background:#fafafa;}
+.preview-title{font-size:12px;color:#666;margin-bottom:6px;}
+.preview-content{font-size:13px;line-height:1.6;}
+.match-text{background:#ffe082;padding:0 2px;border-radius:2px;}
+.option-item{margin-bottom:10px;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+<div class="page-title">正则表达式生成器</div>
+<div class="page-desc">可视化配置正则规则，实时预览匹配效果，自动生成正则表达式</div>
+
+<!-- 正则场景选择 -->
+<div class="card">
+  <div class="label">正则场景</div>
+  <div class="mode-grid" id="modeGrid"></div>
+</div>
+
+<!-- 动态配置区域 -->
+<div id="dynamicArea"></div>
+
+<!-- 匹配测试区域 -->
+<div class="card">
+  <div class="label">匹配测试文本</div>
+  <textarea id="testText" rows="4" placeholder="输入需要测试的文本，查看匹配效果..." oninput="buildRegex()"></textarea>
+  
+  <div class="preview-block">
+    <div class="preview-title">匹配预览</div>
+    <div class="preview-content" id="previewContent"></div>
+  </div>
+</div>
+
+<!-- 正则输出区域 -->
+<div class="label">生成的正则表达式</div>
+<div class="output-block" id="regexOut">/.../</div>
+
+<!-- 修饰符选项 -->
+<div class="card">
+  <div class="label">正则修饰符</div>
+  <div class="tags">
+    <span class="tag" data-flag="g" title="全局匹配">g 全局</span>
+    <span class="tag" data-flag="i" title="忽略大小写">i 忽略大小写</span>
+    <span class="tag" data-flag="m" title="多行匹配">m 多行</span>
+    <span class="tag" data-flag="s" title="点匹配所有字符（包括换行）">s 点匹配所有</span>
+    <span class="tag" data-flag="u" title="Unicode 匹配">u Unicode</span>
+  </div>
+</div>
+
+<div class="btn-row">
+  <button class="btn-primary" onclick="copyRegex()">复制正则</button>
+  <button onclick="resetAll()">重置</button>
+</div>
+</div>
+
+<script>
+// 正则场景配置
+const REG_MODES = [
+  {id:'phone', title:'手机号', desc:'匹配中国大陆手机号'},
+  {id:'email', title:'邮箱', desc:'匹配邮箱地址'},
+  {id:'url', title:'URL', desc:'匹配网址链接'},
+  {id:'idcard', title:'身份证', desc:'匹配18位身份证号'},
+  {id:'date', title:'日期', desc:'匹配日期格式（YYYY-MM-DD）'},
+  {id:'number', title:'数字', desc:'匹配整数/小数/负数'},
+  {id:'custom', title:'自定义', desc:'手动配置正则规则'}
+];
+
+// 全局状态
+let state = {
+  mode: 'phone',
+  flags: new Set(),
+  options: {}
+};
+
+// 场景模板配置
+const TEMPLATES = {
+  phone: `
+    <div class="card">
+      <div class="label">手机号规则</div>
+      <div class="tags" id="phoneTypeTags">
+        <span class="tag on" onclick="pickOne('phoneTypeTags', this, 'phoneType', 'all')">所有运营商</span>
+        <span class="tag" onclick="pickOne('phoneTypeTags', this, 'phoneType', 'cmcc')">移动</span>
+        <span class="tag" onclick="pickOne('phoneTypeTags', this, 'phoneType', 'unicom')">联通</span>
+        <span class="tag" onclick="pickOne('phoneTypeTags', this, 'phoneType', 'telecom')">电信</span>
+      </div>
+      <div class="option-item">
+        <div class="label">是否允许带区号/空格</div>
+        <div class="tags">
+          <span class="tag on" onclick="pickOne('phoneFormatTags', this, 'phoneFormat', 'pure')">纯数字（11位）</span>
+          <span class="tag" onclick="pickOne('phoneFormatTags', this, 'phoneFormat', 'flex')">允许空格/横线分隔</span>
+        </div>
+      </div>
+    </div>
+  `,
+  email: `
+    <div class="card">
+      <div class="label">邮箱规则</div>
+      <div class="option-item">
+        <div class="label">允许的域名</div>
+        <div class="tags" id="emailDomainTags">
+          <span class="tag on" onclick="pickOne('emailDomainTags', this, 'emailDomain', 'all')">所有域名（@xxx.xxx）</span>
+          <span class="tag" onclick="pickOne('emailDomainTags', this, 'emailDomain', 'common')">常见域名（@qq.com/@163.com等）</span>
+          <span class="tag" onclick="pickOne('emailDomainTags', this, 'emailDomain', 'custom')">自定义域名</span>
+        </div>
+      </div>
+      <div id="customDomainRow" style="display:none;margin-top:8px;">
+        <div class="label">自定义域名后缀（多个用|分隔，如 qq.com|163.com）</div>
+        <input id="f_domain" placeholder="qq.com|163.com|gmail.com" oninput="buildRegex()">
+      </div>
+      <div class="option-item">
+        <div class="label">用户名规则</div>
+        <div class="tags" id="emailUserTags">
+          <span class="tag on" onclick="pickOne('emailUserTags', this, 'emailUser', 'normal')">字母/数字/下划线</span>
+          <span class="tag" onclick="pickOne('emailUserTags', this, 'emailUser', 'strict')">仅字母数字</span>
+        </div>
+      </div>
+    </div>
+  `,
+  url: `
+    <div class="card">
+      <div class="label">URL规则</div>
+      <div class="option-item">
+        <div class="label">协议类型</div>
+        <div class="tags" id="urlProtocolTags">
+          <span class="tag on" onclick="pickOne('urlProtocolTags', this, 'urlProtocol', 'all')">http/https/ftp</span>
+          <span class="tag" onclick="pickOne('urlProtocolTags', this, 'urlProtocol', 'http')">仅http/https</span>
+          <span class="tag" onclick="pickOne('urlProtocolTags', this, 'urlProtocol', 'none')">可选协议（如 www.xxx.com）</span>
+        </div>
+      </div>
+      <div class="option-item">
+        <div class="label">是否允许参数</div>
+        <div class="tags" id="urlParamTags">
+          <span class="tag on" onclick="pickOne('urlParamTags', this, 'urlParam', 'yes')">允许（含?&=等）</span>
+          <span class="tag" onclick="pickOne('urlParamTags', this, 'urlParam', 'no')">仅域名和路径</span>
+        </div>
+      </div>
+    </div>
+  `,
+  idcard: `
+    <div class="card">
+      <div class="label">身份证规则</div>
+      <div class="option-item">
+        <div class="label">校验规则</div>
+        <div class="tags" id="idcardCheckTags">
+          <span class="tag on" onclick="pickOne('idcardCheckTags', this, 'idcardCheck', 'simple')">简单匹配（仅格式）</span>
+          <span class="tag" onclick="pickOne('idcardCheckTags', this, 'idcardCheck', 'strict')">严格校验（含最后一位校验码）</span>
+        </div>
+      </div>
+      <div class="hint">注：严格校验仅做格式验证，不验证地址码和出生日期真实性</div>
+    </div>
+  `,
+  date: `
+    <div class="card">
+      <div class="label">日期规则</div>
+      <div class="option-item">
+        <div class="label">分隔符</div>
+        <div class="tags" id="dateSepTags">
+          <span class="tag on" onclick="pickOne('dateSepTags', this, 'dateSep', '-')">横线（YYYY-MM-DD）</span>
+          <span class="tag" onclick="pickOne('dateSepTags', this, 'dateSep', '/')">斜杠（YYYY/MM/DD）</span>
+          <span class="tag" onclick="pickOne('dateSepTags', this, 'dateSep', '.')">点（YYYY.MM.DD）</span>
+          <span class="tag" onclick="pickOne('dateSepTags', this, 'dateSep', 'mix')">混合分隔符</span>
+        </div>
+      </div>
+      <div class="option-item">
+        <div class="label">年份格式</div>
+        <div class="tags" id="dateYearTags">
+          <span class="tag on" onclick="pickOne('dateYearTags', this, 'dateYear', '4')">4位年份（2024）</span>
+          <span class="tag" onclick="pickOne('dateYearTags', this, 'dateYear', '2')">2位年份（24）</span>
+          <span class="tag" onclick="pickOne('dateYearTags', this, 'dateYear', 'both')">兼容2/4位年份</span>
+        </div>
+      </div>
+    </div>
+  `,
+  number: `
+    <div class="card">
+      <div class="label">数字规则</div>
+      <div class="option-item">
+        <div class="label">数字类型</div>
+        <div class="tags" id="numberTypeTags">
+          <span class="tag on" onclick="pickOne('numberTypeTags', this, 'numberType', 'all')">整数+小数</span>
+          <span class="tag" onclick="pickOne('numberTypeTags', this, 'numberType', 'int')">仅整数</span>
+          <span class="tag" onclick="pickOne('numberTypeTags', this, 'numberType', 'float')">仅小数</span>
+        </div>
+      </div>
+      <div class="option-item">
+        <div class="label">符号</div>
+        <div class="tags" id="numberSignTags">
+          <span class="tag on" onclick="pickOne('numberSignTags', this, 'numberSign', 'all')">正负均可</span>
+          <span class="tag" onclick="pickOne('numberSignTags', this, 'numberSign', 'positive')">仅正数</span>
+          <span class="tag" onclick="pickOne('numberSignTags', this, 'numberSign', 'negative')">仅负数</span>
+        </div>
+      </div>
+      <div class="option-item">
+        <div class="label">小数位数</div>
+        <input type="range" id="f_decimal" min="0" max="10" value="2" step="1" oninput="document.getElementById('decimalVal').textContent=this.value;buildRegex()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+          <span class="hint">0=不限小数位</span>
+          <span id="decimalVal" style="font-size:13px;">2</span>
+          <span class="hint">最多10位小数</span>
+        </div>
+      </div>
+    </div>
+  `,
+  custom: `
+    <div class="card">
+      <div class="label">自定义正则规则</div>
+      <div class="option-item">
+        <div class="label">匹配内容</div>
+        <input id="f_customPattern" placeholder="如：[a-z0-9_]+" oninput="buildRegex()" title="输入正则主体部分（无需/包裹）">
+      </div>
+      <div class="option-item">
+        <div class="label">匹配范围</div>
+        <div class="tags" id="customScopeTags">
+          <span class="tag on" onclick="pickOne('customScopeTags', this, 'customScope', 'any')">任意位置</span>
+          <span class="tag" onclick="pickOne('customScopeTags', this, 'customScope', 'start')">行开头</span>
+          <span class="tag" onclick="pickOne('customScopeTags', this, 'customScope', 'end')">行结尾</span>
+          <span class="tag" onclick="pickOne('customScopeTags', this, 'customScope', 'full')">完全匹配</span>
+        </div>
+      </div>
+      <div class="option-item">
+        <div class="label">重复次数</div>
+        <div class="row2">
+          <div>
+            <div class="label">最小次数</div>
+            <input id="f_minRepeat" placeholder="0" value="0" oninput="buildRegex()">
+          </div>
+          <div>
+            <div class="label">最大次数</div>
+            <input id="f_maxRepeat" placeholder="空=不限" oninput="buildRegex()">
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+// 初始化场景
+function renderModes() {
+  const grid = document.getElementById('modeGrid');
+  grid.innerHTML = REG_MODES.map(m => `
+    <div class="mode-card${state.mode === m.id ? ' on' : ''}" onclick="setMode('${m.id}')">
+      <div class="mc-title">${m.title}</div>
+      <div class="mc-desc">${m.desc}</div>
+    </div>
+  `).join('');
+}
+
+// 设置当前场景
+function setMode(mode) {
+  state.mode = mode;
+  // 重置场景配置
+  state.options = {
+    phoneType: 'all',
+    phoneFormat: 'pure',
+    emailDomain: 'all',
+    emailUser: 'normal',
+    urlProtocol: 'all',
+    urlParam: 'yes',
+    idcardCheck: 'simple',
+    dateSep: '-',
+    dateYear: '4',
+    numberType: 'all',
+    numberSign: 'all',
+    decimal: 2,
+    customPattern: '',
+    customScope: 'any',
+    minRepeat: 0,
+    maxRepeat: ''
+  };
+  
+  renderModes();
+  document.getElementById('dynamicArea').innerHTML = TEMPLATES[mode] || '';
+  buildRegex();
+}
+
+// 工具函数
+function g(id) { return document.getElementById(id); }
+function val(id) { const e = g(id); return e ? e.value.trim() : ''; }
+
+// 单选标签切换
+function pickOne(groupId, el, key, value) {
+  document.querySelectorAll(`#${groupId} .tag`).forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  state.options[key] = value;
+  
+  // 特殊处理：邮箱自定义域名显示/隐藏
+  if (key === 'emailDomain') {
+    const customRow = g('customDomainRow');
+    if (customRow) {
+      customRow.style.display = value === 'custom' ? 'block' : 'none';
+    }
+  }
+  
+  buildRegex();
+}
+
+// 获取修饰符
+function getFlags() {
+  const flags = [];
+  document.querySelectorAll('.tag[data-flag].on').forEach(t => flags.push(t.dataset.flag));
+  return flags.join('');
+}
+
+// 生成正则表达式
+function buildRegex() {
+  const mode = state.mode;
+  const opts = state.options;
+  const flags = getFlags();
+  let regexPattern = '';
+
+  // 按场景生成正则
+  switch (mode) {
+    case 'phone':
+      // 手机号正则
+      let phonePrefix = '';
+      if (opts.phoneType === 'cmcc') phonePrefix = '1(3[4-9]|4[7]|5[0-27-9]|7[8]|8[2-478]|9[8])';
+      else if (opts.phoneType === 'unicom') phonePrefix = '1(3[0-2]|4[5]|5[56]|7[156]|8[56]|9[6])';
+      else if (opts.phoneType === 'telecom') phonePrefix = '1(3[3]|4[9]|5[3]|7[37]|8[019]|9[19])';
+      else phonePrefix = '1[3-9]\\d'; // 所有运营商
+
+      if (opts.phoneFormat === 'pure') {
+        regexPattern = `${phonePrefix}\\d{8}`;
+      } else {
+        regexPattern = `(${phonePrefix}[\\s-]?\\d{4}[\\s-]?\\d{4})`;
+      }
+      break;
+
+    case 'email':
+      // 邮箱正则
+      let userPattern = opts.emailUser === 'strict' ? '[a-zA-Z0-9]+' : '[a-zA-Z0-9._-]+';
+      let domainPattern = '';
+      
+      if (opts.emailDomain === 'common') {
+        domainPattern = '(qq|163|126|sina|gmail|outlook|139|yeah)\\.(com|cn)';
+      } else if (opts.emailDomain === 'custom') {
+        domainPattern = val('f_domain') || '\\w+\\.\\w+';
+      } else {
+        domainPattern = '[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}';
+      }
+      regexPattern = `${userPattern}@${domainPattern}`;
+      break;
+
+    case 'url':
+      // URL正则
+      let protocolPattern = '';
+      if (opts.urlProtocol === 'http') protocolPattern = '(https?:\\/\\/)';
+      else if (opts.urlProtocol === 'all') protocolPattern = '(https?|ftp):\\/\\/';
+      else protocolPattern = '(https?:\\/\\/)?';
+
+      let pathPattern = opts.urlParam === 'yes' ? '[^\s]*' : '[^\\s?&=]*';
+      regexPattern = `${protocolPattern}[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(${pathPattern})?`;
+      break;
+
+    case 'idcard':
+      // 身份证正则
+      if (opts.idcardCheck === 'strict') {
+        regexPattern = '\\d{6}(19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]';
+      } else {
+        regexPattern = '\\d{17}[0-9Xx]';
+      }
+      break;
+
+    case 'date':
+      // 日期正则
+      let sep = opts.dateSep === 'mix' ? '[-/.]' : opts.dateSep;
+      let yearPattern = opts.dateYear === '4' ? '\\d{4}' : opts.dateYear === '2' ? '\\d{2}' : '\\d{2,4}';
+      regexPattern = `${yearPattern}${sep}(0[1-9]|1[0-2])${sep}(0[1-9]|[12]\\d|3[01])`;
+      break;
+
+    case 'number':
+      // 数字正则
+      let signPattern = opts.numberSign === 'positive' ? '' : opts.numberSign === 'negative' ? '-' : '-?';
+      let decimalPattern = '';
+      const decimal = parseInt(val('f_decimal') || 2);
+      
+      if (opts.numberType === 'int') {
+        decimalPattern = '';
+      } else if (opts.numberType === 'float') {
+        decimalPattern = `\\.\\d${decimal > 0 ? `{1,${decimal}}` : '+'}`;
+      } else {
+        decimalPattern = `(\\.\\d${decimal > 0 ? `{1,${decimal}}` : '*'})?`;
+      }
+      regexPattern = `${signPattern}\\d+${decimalPattern}`;
+      break;
+
+    case 'custom':
+      // 自定义正则
+      let pattern = val('f_customPattern') || '.';
+      let scope = '';
+      if (opts.customScope === 'start') scope = '^';
+      else if (opts.customScope === 'end') scope = '$';
+      else if (opts.customScope === 'full') scope = '^$';
+      
+      let repeat = '';
+      const min = val('f_minRepeat') || 0;
+      const max = val('f_maxRepeat');
+      if (max) repeat = `{${min},${max}}`;
+      else if (min > 0) repeat = `{${min},}`;
+      
+      regexPattern = `${scope === '^$' ? '^' : ''}${pattern}${repeat}${scope === '^$' ? '$' : (scope === '$' ? '$' : '')}`;
+      break;
+  }
+
+  // 生成最终正则表达式
+  const finalRegex = regexPattern ? `/${regexPattern}/${flags}` : '/.*/';
+  g('regexOut').textContent = finalRegex;
+
+  // 预览匹配效果
+  previewMatch(finalRegex);
+}
+
+// 预览匹配效果
+function previewMatch(regexStr) {
+  const testText = val('testText');
+  const previewEl = g('previewContent');
+  
+  if (!testText || !regexStr) {
+    previewEl.innerHTML = testText || '请输入测试文本...';
+    return;
+  }
+
+  try {
+    // 解析正则表达式
+    const [, pattern, flags] = regexStr.match(/^\/(.*)\/(.*)$/) || [];
+    const regex = new RegExp(pattern, flags);
+    
+    // 高亮匹配内容
+    let html = testText.replace(regex, (match) => `<span class="match-text">${match}</span>`);
+    previewEl.innerHTML = html;
+  } catch (e) {
+    previewEl.innerHTML = `<span style="color:#e53935;">正则格式错误：${e.message}</span>`;
+  }
+}
+
+// 复制正则
+async function copyRegex() {
+  const txt = g('regexOut').textContent;
+  try {
+    await navigator.clipboard.writeText(txt);
+    const el = g('regexOut');
+    const orig = el.style.background;
+    el.style.background = '#d4edda';
+    setTimeout(() => { el.style.background = orig; }, 800);
+  } catch {
+    alert('复制失败，请手动复制');
+  }
+}
+
+// 重置
+function resetAll() {
+  setMode('phone');
+  g('testText').value = '';
+  g('previewContent').textContent = '请输入测试文本...';
+}
+
+// 初始化修饰符点击事件
+document.querySelectorAll('.tag[data-flag]').forEach(t => {
+  t.addEventListener('click', function() {
+    this.classList.toggle('on');
+    buildRegex();
+  });
+});
+
+// 初始化
+setMode('phone');
+
+// 监听测试文本变化
+g('testText').addEventListener('input', buildRegex);
+</script>
+</body>
+</html>

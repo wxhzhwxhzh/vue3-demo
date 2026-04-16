@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ripgrep 命令生成器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;padding:20px;color:#222;}
+.wrap{max-width:760px;margin:0 auto;padding:1rem 0;}
+.page-title{font-size:20px;font-weight:500;margin-bottom:4px;}
+.page-desc{font-size:13px;color:#666;margin-bottom:20px;}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-bottom:12px;}
+.label{font-size:12px;color:#666;margin-bottom:6px;margin-top:10px;}
+.label:first-child{margin-top:0;}
+input,select,textarea{width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;background:#fafafa;color:#222;font-family:inherit;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#888;}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.tag{padding:4px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px;cursor:pointer;background:#f5f5f5;color:#555;user-select:none;transition:all 0.15s;}
+.tag:hover{border-color:#888;color:#222;}
+.tag.on{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.output-block{background:#f8f9fa;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-top:12px;font-family:monospace;font-size:13px;line-height:1.7;word-break:break-all;white-space:pre-wrap;color:#222;min-height:56px;}
+.btn-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+button{padding:7px 14px;border:1px solid #ccc;border-radius:6px;background:transparent;color:#222;font-size:13px;cursor:pointer;font-family:inherit;}
+button:hover{background:#f0f0f0;}
+button:active{transform:scale(0.98);}
+.btn-primary{background:#E6F1FB;border-color:#185FA5;color:#0C447C;}
+.btn-primary:hover{background:#B5D4F4;}
+.section-sep{border:none;border-top:1px solid #eee;margin:10px 0;}
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:6px;}
+.mode-card{border:1px solid #ddd;border-radius:6px;padding:10px;cursor:pointer;background:#fafafa;transition:all 0.15s;}
+.mode-card:hover{border-color:#888;}
+.mode-card.on{background:#E6F1FB;border-color:#185FA5;}
+.mode-card.on .mc-title{color:#0C447C;}
+.mc-title{font-size:13px;font-weight:500;margin-bottom:2px;color:#222;}
+.mc-desc{font-size:11px;color:#888;}
+.hint{font-size:11px;color:#888;margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+<div class="page-title">ripgrep 命令生成器</div>
+<div class="page-desc">可视化配置 ripgrep（rg）搜索参数，自动生成高效命令</div>
+
+<div class="card">
+  <div class="label">搜索模式</div>
+  <div class="mode-grid" id="modeGrid"></div>
+</div>
+
+<div id="dynamicArea"></div>
+
+<div class="card">
+  <div class="label">通用选项</div>
+  <div class="tags">
+    <span class="tag" data-flag="--color=always">彩色输出</span>
+    <span class="tag" data-flag="-i">忽略大小写 (-i)</span>
+    <span class="tag" data-flag="-w">整词匹配 (-w)</span>
+    <span class="tag" data-flag="-F">固定字符串（不使用正则）</span>
+    <span class="tag" data-flag="--hidden">搜索隐藏文件</span>
+    <span class="tag" data-flag="--no-ignore">忽略 .gitignore</span>
+    <span class="tag" data-flag="-L">跟随符号链接</span>
+    <span class="tag" data-flag="--stats">显示统计信息</span>
+  </div>
+</div>
+
+<div class="output-block" id="cmdOut">rg ...</div>
+
+<div class="btn-row">
+  <button class="btn-primary" onclick="copyCmd()">复制命令</button>
+  <button onclick="resetAll()">重置</button>
+</div>
+</div>
+
+<script>
+// 搜索模式定义
+const MODES = [
+  {id:'basic',     title:'基本搜索',      desc:'普通文本搜索'},
+  {id:'file',      title:'文件/路径过滤', desc:'按文件名、扩展名、路径搜索'},
+  {id:'type',      title:'文件类型',      desc:'按编程语言或文件类型过滤'},
+  {id:'regex',     title:'高级正则',      desc:'复杂正则表达式搜索'},
+  {id:'context',   title:'上下文显示',    desc:'显示匹配行前后内容'},
+  {id:'replace',   title:'搜索并替换',    desc:'生成 sed / rg --replace 命令'},
+  {id:'count',     title:'仅统计数量',    desc:'统计匹配次数'},
+];
+
+let state = {mode: 'basic', flags: new Set(), fields: {}};
+let modeState = {};
+
+const TEMPLATES = {
+  basic: `
+    <div class="card">
+      <div class="label">搜索内容（正则表达式）</div>
+      <input id="f_pattern" placeholder="TODO|FIXME|error" oninput="buildCmd()">
+      <div class="label">搜索路径（可选）</div>
+      <input id="f_path" placeholder="." oninput="buildCmd()">
+    </div>`,
+
+  file: `
+    <div class="card">
+      <div class="label">搜索内容</div>
+      <input id="f_pattern" placeholder="function" oninput="buildCmd()">
+      <div class="label">文件名匹配（支持 glob）</div>
+      <input id="f_glob" placeholder="*.js,*.ts" oninput="buildCmd()">
+      <div class="label">排除文件/目录</div>
+      <input id="f_ignore" placeholder="node_modules,dist,*.min.js" oninput="buildCmd()">
+      <div class="label">搜索路径</div>
+      <input id="f_path" placeholder="." oninput="buildCmd()">
+    </div>`,
+
+  type: `
+    <div class="card">
+      <div class="label">搜索内容</div>
+      <input id="f_pattern" placeholder="console.log" oninput="buildCmd()">
+      <div class="label">文件类型</div>
+      <div class="tags" id="typeTags">
+        <span class="tag on" onclick="pickType(this,'rust')">Rust</span>
+        <span class="tag" onclick="pickType(this,'python')">Python</span>
+        <span class="tag" onclick="pickType(this,'js')">JavaScript/TypeScript</span>
+        <span class="tag" onclick="pickType(this,'go')">Go</span>
+        <span class="tag" onclick="pickType(this,'cpp')">C/C++</span>
+        <span class="tag" onclick="pickType(this,'java')">Java</span>
+        <span class="tag" onclick="pickType(this,'all')">所有类型</span>
+      </div>
+      <div class="label">搜索路径</div>
+      <input id="f_path" placeholder="." oninput="buildCmd()">
+    </div>`,
+
+  regex: `
+    <div class="card">
+      <div class="label">正则表达式</div>
+      <input id="f_pattern" placeholder="\\b\\w+@\\w+\\.\\w+\\b" oninput="buildCmd()">
+      <div class="label">搜索路径</div>
+      <input id="f_path" placeholder="." oninput="buildCmd()">
+      <div class="hint">提示：支持 lookaround、命名捕获等高级特性</div>
+    </div>`,
+
+  context: `
+    <div class="card">
+      <div class="label">搜索内容</div>
+      <input id="f_pattern" placeholder="error" oninput="buildCmd()">
+      <div class="row2">
+        <div>
+          <div class="label">前几行 (-B)</div>
+          <input id="f_before" type="number" placeholder="2" oninput="buildCmd()">
+        </div>
+        <div>
+          <div class="label">后几行 (-A)</div>
+          <input id="f_after" type="number" placeholder="3" oninput="buildCmd()">
+        </div>
+      </div>
+      <div class="label">上下文行数 (-C)</div>
+      <input id="f_context" type="number" placeholder="5" oninput="buildCmd()">
+      <div class="label">搜索路径</div>
+      <input id="f_path" placeholder="." oninput="buildCmd()">
+    </div>`,
+
+  replace: `
+    <div class="card">
+      <div class="label">搜索内容</div>
+      <input id="f_pattern" placeholder="old_function" oninput="buildCmd()">
+      <div class="label">替换为</div>
+      <input id="f_replace" placeholder="new_function" oninput="buildCmd()">
+      <div class="label">搜索路径</div>
+      <input id="f_path" placeholder="." oninput="buildCmd()">
+      <div class="hint">生成带 --replace 的命令（不会自动修改文件）</div>
+    </div>`,
+
+  count: `
+    <div class="card">
+      <div class="label">搜索内容</div>
+      <input id="f_pattern" placeholder="TODO" oninput="buildCmd()">
+      <div class="label">搜索路径</div>
+      <input id="f_path" placeholder="." oninput="buildCmd()">
+    </div>`
+};
+
+function renderModes() {
+  const g = document.getElementById('modeGrid');
+  g.innerHTML = MODES.map(m => `
+    <div class="mode-card${state.mode===m.id?' on':''}" onclick="setMode('${m.id}')">
+      <div class="mc-title">${m.title}</div>
+      <div class="mc-desc">${m.desc}</div>
+    </div>
+  `).join('');
+}
+
+function setMode(m) {
+  state.mode = m;
+  modeState = {type: 'js'};
+  renderModes();
+  document.getElementById('dynamicArea').innerHTML = TEMPLATES[m] || '';
+  buildCmd();
+}
+
+function g(id) { return document.getElementById(id); }
+
+function pickType(el, v) {
+  document.querySelectorAll('#typeTags .tag').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  modeState.type = v;
+  buildCmd();
+}
+
+function getFlags() {
+  const f = [];
+  document.querySelectorAll('.tag[data-flag].on').forEach(t => f.push(t.dataset.flag));
+  return f;
+}
+
+function buildCmd() {
+  const m = state.mode;
+  const flags = getFlags();
+  let cmd = 'rg';
+
+  const pattern = g('f_pattern') ? g('f_pattern').value.trim() : '';
+  const path = g('f_path') ? g('f_path').value.trim() || '.' : '.';
+
+  if (pattern) cmd += ` "${pattern}"`;
+
+  // 通用标志
+  if (flags.length) cmd += ' ' + flags.join(' ');
+
+  switch (m) {
+    case 'file':
+      if (g('f_glob') && g('f_glob').value.trim()) {
+        cmd += ` --glob "${g('f_glob').value.trim()}"`;
+      }
+      if (g('f_ignore') && g('f_ignore').value.trim()) {
+        const ignores = g('f_ignore').value.split(',').map(s => s.trim());
+        ignores.forEach(ig => {
+          if (ig) cmd += ` --glob '!${ig}'`;
+        });
+      }
+      break;
+
+    case 'type':
+      if (modeState.type && modeState.type !== 'all') {
+        cmd += ` -t ${modeState.type}`;
+      }
+      break;
+
+    case 'context':
+      if (g('f_before') && g('f_before').value) cmd += ` -B ${g('f_before').value}`;
+      if (g('f_after') && g('f_after').value) cmd += ` -A ${g('f_after').value}`;
+      if (g('f_context') && g('f_context').value) cmd += ` -C ${g('f_context').value}`;
+      break;
+
+    case 'replace':
+      if (g('f_replace') && g('f_replace').value.trim()) {
+        cmd += ` --replace "${g('f_replace').value.trim()}"`;
+      }
+      break;
+
+    case 'count':
+      cmd += ' --count';
+      break;
+  }
+
+  // 添加路径（如果不是当前目录）
+  if (path && path !== '.') {
+    cmd += ` ${path}`;
+  }
+
+  document.getElementById('cmdOut').textContent = cmd || 'rg ...';
+}
+
+// 通用标签点击事件
+document.querySelectorAll('.tag[data-flag]').forEach(t => {
+  t.addEventListener('click', function() {
+    this.classList.toggle('on');
+    buildCmd();
+  });
+});
+
+async function copyCmd() {
+  const txt = g('cmdOut').textContent;
+  try {
+    await navigator.clipboard.writeText(txt);
+    const el = g('cmdOut');
+    const orig = el.style.background;
+    el.style.background = '#d4edda';
+    setTimeout(() => { el.style.background = orig; }, 800);
+  } catch(e) {
+    alert('复制失败，请手动复制');
+  }
+}
+
+function resetAll() {
+  setMode('basic');
+}
+
+// 初始化
+setMode('basic');
+</script>
+</body>
+</html>
