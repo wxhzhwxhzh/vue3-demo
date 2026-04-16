@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+  <title>aria2c 命令生成器 · 多线程下载</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;background:#f5f7fa;padding:16px 12px 24px;color:#1e293b;}
+    .wrap{max-width:800px;margin:0 auto;}
+    .page-title{font-size:24px;font-weight:600;letter-spacing:-0.01em;margin-bottom:4px;color:#0f172a;}
+    .page-desc{font-size:13px;color:#64748b;margin-bottom:20px;border-left:3px solid #f97316;padding-left:12px;}
+    .card{background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:1.2rem 1.25rem;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,0.02);}
+    .label{font-size:12px;font-weight:500;color:#475569;margin-bottom:6px;margin-top:10px;letter-spacing:0.3px;}
+    .label:first-child{margin-top:0;}
+    input,select,textarea{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;background:#fafcff;color:#0f172a;font-family:inherit;transition:border 0.15s;}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:#f97316;background:#ffffff;box-shadow:0 0 0 3px rgba(249,115,22,0.1);}
+    input:disabled{background:#f1f5f9;color:#94a3b8;cursor:not-allowed;}
+    .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+    .tag{padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:30px;font-size:12px;font-weight:500;cursor:pointer;background:#f8fafc;color:#334155;user-select:none;transition:all 0.15s;}
+    .tag:hover{border-color:#94a3b8;background:#ffffff;}
+    .tag.on{background:#fff7ed;border-color:#f97316;color:#c2410c;font-weight:500;}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+    .output-block{background:#0b1120;border:1px solid #334155;border-radius:14px;padding:1rem 1.3rem;margin-top:16px;font-family:'SF Mono','Menlo','Monaco','Cascadia Code',monospace;font-size:13px;line-height:1.6;word-break:break-all;white-space:pre-wrap;color:#e2e8f0;min-height:62px;box-shadow:inset 0 0 0 1px #1e293b;}
+    .btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+    button{padding:9px 18px;border:1.5px solid #cbd5e1;border-radius:40px;background:white;color:#1e293b;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 0.15s;box-shadow:0 1px 2px rgba(0,0,0,0.02);}
+    button:hover{background:#f1f5f9;border-color:#94a3b8;}
+    button:active{transform:scale(0.97);}
+    .btn-primary{background:#ea580c;border-color:#ea580c;color:white;box-shadow:0 4px 8px rgba(234,88,12,0.18);}
+    .btn-primary:hover{background:#f97316;border-color:#f97316;}
+    .mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px;}
+    .mode-card{border:1.5px solid #e2e8f0;border-radius:14px;padding:12px 8px;cursor:pointer;background:#fafcff;transition:all 0.15s;text-align:center;}
+    .mode-card:hover{border-color:#94a3b8;background:#ffffff;}
+    .mode-card.on{background:#fff7ed;border-color:#f97316;}
+    .mc-title{font-size:14px;font-weight:600;color:#0f172a;margin-bottom:3px;}
+    .mc-desc{font-size:11px;color:#64748b;}
+    .hint{font-size:11px;color:#64748b;margin-top:4px;}
+    .section-sep{border:none;border-top:1.5px dashed #e2e8f0;margin:14px 0 8px;}
+    .flex-row{display:flex;align-items:center;gap:10px;}
+    .num-row{display:flex;align-items:center;gap:8px;}
+    .num-row input{width:100px;flex-shrink:0;}
+    .num-row .hint{margin:0;}
+    .slider-row{display:flex;align-items:center;gap:12px;margin-top:6px;}
+    .slider-row input[type=range]{flex:1;accent-color:#f97316;}
+    .slider-val{font-size:13px;font-weight:600;color:#ea580c;min-width:30px;text-align:center;font-family:monospace;}
+  </style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="page-title">⚡ aria2c 命令生成器</div>
+  <div class="page-desc">多线程下载 · HTTP/FTP/BitTorrent/Metalink · 断点续传 — 自动生成 aria2c 命令</div>
+
+  <!-- 模式卡片 -->
+  <div class="card">
+    <div class="label">📌 选择场景</div>
+    <div class="mode-grid" id="modeGrid"></div>
+  </div>
+
+  <!-- 动态表单区域 -->
+  <div id="dynamicArea"></div>
+
+  <!-- 通用标志 -->
+  <div class="card">
+    <div class="label">⚡ 通用选项 (点击切换)</div>
+    <div class="tags" id="globalFlags">
+      <span class="tag" data-flag="--continue=true">⏯️ 断点续传</span>
+      <span class="tag" data-flag="--allow-overwrite=false">🛡️ 不覆盖已有</span>
+      <span class="tag" data-flag="--auto-file-renaming=true">✏️ 自动重命名</span>
+      <span class="tag" data-flag="--check-integrity=true">🔍 校验完整性</span>
+      <span class="tag" data-flag="--quiet=true">🤫 静默输出</span>
+      <span class="tag" data-flag="--show-console-readout=false">🚫 隐藏进度条</span>
+      <span class="tag" data-flag="--console-log-level=error">⚠️ 仅显示错误</span>
+    </div>
+    <div class="hint" style="margin-top:8px;">* 通用选项会追加到命令末尾 (部分互斥，请按需选择)</div>
+  </div>
+
+  <!-- 命令输出区 -->
+  <div class="output-block" id="cmdOut">aria2c ...</div>
+
+  <div class="btn-row">
+    <button class="btn-primary" onclick="copyCmd()">📋 复制命令</button>
+    <button onclick="resetAll()">🔄 重置为默认</button>
+  </div>
+  <div style="font-size:11px;color:#94a3b8;margin-top:12px;text-align:center;">aria2c 需已安装 · 命令可直接在终端运行 · 支持 HTTP/HTTPS/FTP/SFTP/BitTorrent/Metalink</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- 模式定义 ----------
+  const MODES = [
+    { id: 'http',      title: '🌐 HTTP/FTP',   desc: 'URL 单/多线程下载' },
+    { id: 'multi',     title: '📦 批量下载',    desc: '多 URL / 输入文件' },
+    { id: 'torrent',   title: '🧲 BT 下载',     desc: '.torrent / 磁力链' },
+    { id: 'metalink',  title: '🔗 Metalink',    desc: '.meta4 / .metalink' },
+    { id: 'network',   title: '🌍 网络/代理',   desc: '代理 / 限速 / UA' },
+    { id: 'rpc',       title: '⚙️ RPC 服务',    desc: '启动后台 RPC 模式' },
+  ];
+
+  let state = { mode: 'http' };
+  let modeState = {};
+
+  const modeGrid    = document.getElementById('modeGrid');
+  const dynamicArea = document.getElementById('dynamicArea');
+  const cmdOut      = document.getElementById('cmdOut');
+
+  // ---------- 渲染模式卡片 ----------
+  function renderModes() {
+    modeGrid.innerHTML = MODES.map(m => `
+      <div class="mode-card ${state.mode === m.id ? 'on' : ''}" onclick="setMode('${m.id}')">
+        <div class="mc-title">${m.title}</div>
+        <div class="mc-desc">${m.desc}</div>
+      </div>
+    `).join('');
+  }
+
+  // ---------- 各模式 HTML 模板 ----------
+  const TEMPLATES = {
+
+    http: `
+      <div class="card">
+        <div class="label">🔗 下载 URL</div>
+        <input id="f_url" placeholder="https://example.com/file.zip" oninput="buildCmd()">
+        <div class="hint">支持 HTTP / HTTPS / FTP / SFTP</div>
+
+        <div class="label" style="margin-top:14px;">📁 保存目录 (-d)</div>
+        <input id="f_dir" placeholder="留空=当前目录" oninput="buildCmd()">
+
+        <div class="label">💾 保存文件名 (-o)</div>
+        <input id="f_out" placeholder="留空=自动从 URL 提取" oninput="buildCmd()">
+
+        <hr class="section-sep">
+        <div class="label">⚡ 并发连接数 (-x / -s)</div>
+        <div class="slider-row">
+          <input type="range" id="f_conn" min="1" max="16" value="4" oninput="syncSlider('f_conn','sv_conn');buildCmd()">
+          <div class="slider-val" id="sv_conn">4</div>
+          <div class="hint">连接数</div>
+        </div>
+
+        <div class="label">🔁 重试次数 (--max-tries)</div>
+        <div class="tags" id="retryTags">
+          <span class="tag on" onclick="pickTag('#retryTags .tag',this,'retry','5')">5 次</span>
+          <span class="tag"    onclick="pickTag('#retryTags .tag',this,'retry','10')">10 次</span>
+          <span class="tag"    onclick="pickTag('#retryTags .tag',this,'retry','0')">无限重试</span>
+        </div>
+
+        <div class="label">✨ 附加选项</div>
+        <div class="tags" id="httpOpts">
+          <span class="tag" data-opt="--split=16" onclick="toggleOpt(this)">🔀 16 段分片</span>
+          <span class="tag" data-opt="--file-allocation=none" onclick="toggleOpt(this)">⚡ 不预分配磁盘</span>
+          <span class="tag" data-opt="--remote-time=true" onclick="toggleOpt(this)">📅 使用远端时间</span>
+          <span class="tag" data-opt="--dry-run=true" onclick="toggleOpt(this)">🔎 模拟运行</span>
+        </div>
+      </div>
+    `,
+
+    multi: `
+      <div class="card">
+        <div class="label">📋 批量 URL（每行一个，最多直接列 3 条）</div>
+        <textarea id="f_urls" rows="4" placeholder="https://example.com/file1.zip&#10;https://example.com/file2.zip&#10;https://example.com/file3.zip" oninput="buildCmd()" style="resize:vertical;"></textarea>
+        <div class="hint">超过 3 条建议使用下方"输入文件"方式</div>
+
+        <hr class="section-sep">
+        <div class="label">📂 或使用输入文件 (-i) <span style="color:#94a3b8;font-weight:400;">（与上方互斥）</span></div>
+        <input id="f_input" placeholder="urls.txt 路径，留空则使用上方 URL" oninput="buildCmd()">
+        <div class="hint">文件每行一个 URL，支持选项行（以空格 + -- 开头）</div>
+
+        <div class="label">📁 保存目录 (-d)</div>
+        <input id="f_dir" placeholder="留空=当前目录" oninput="buildCmd()">
+
+        <div class="label">⚡ 并发下载任务数 (-j)</div>
+        <div class="slider-row">
+          <input type="range" id="f_jobs" min="1" max="10" value="3" oninput="syncSlider('f_jobs','sv_jobs');buildCmd()">
+          <div class="slider-val" id="sv_jobs">3</div>
+          <div class="hint">同时下载任务数</div>
+        </div>
+
+        <div class="label">⚡ 每任务连接数 (-x)</div>
+        <div class="slider-row">
+          <input type="range" id="f_conn" min="1" max="16" value="4" oninput="syncSlider('f_conn','sv_conn');buildCmd()">
+          <div class="slider-val" id="sv_conn">4</div>
+          <div class="hint">每 URL 连接数</div>
+        </div>
+
+        <div class="label">✨ 附加选项</div>
+        <div class="tags">
+          <span class="tag on" data-opt="--continue=true" onclick="toggleOpt(this)">⏯️ 断点续传</span>
+          <span class="tag" data-opt="--file-allocation=none" onclick="toggleOpt(this)">⚡ 不预分配磁盘</span>
+        </div>
+      </div>
+    `,
+
+    torrent: `
+      <div class="card">
+        <div class="label">🧲 磁力链接 / .torrent 文件路径</div>
+        <input id="f_torrent" placeholder="magnet:?xt=urn:btih:... 或 /path/to/file.torrent" oninput="buildCmd()">
+        <div class="hint">磁力链接直接粘贴；.torrent 文件填写本地路径</div>
+
+        <div class="label">📁 保存目录 (-d)</div>
+        <input id="f_dir" placeholder="留空=当前目录" oninput="buildCmd()">
+
+        <hr class="section-sep">
+        <div class="label">⚡ 最大上传速度 (--max-upload-limit)</div>
+        <div class="flex-row">
+          <input id="f_uplimit" placeholder="0=不限" style="flex:1;" oninput="buildCmd()">
+          <select id="f_upunit" onchange="buildCmd()" style="width:80px;">
+            <option value="K">K/s</option>
+            <option value="M" selected>M/s</option>
+          </select>
+        </div>
+
+        <div class="label">⬇️ 最大下载速度 (--max-download-limit)</div>
+        <div class="flex-row">
+          <input id="f_downlimit" placeholder="0=不限" style="flex:1;" oninput="buildCmd()">
+          <select id="f_downunit" onchange="buildCmd()" style="width:80px;">
+            <option value="K">K/s</option>
+            <option value="M" selected>M/s</option>
+          </select>
+        </div>
+
+        <div class="label">🌱 做种时间 (--seed-time，分钟)</div>
+        <div class="tags" id="seedTimeTags">
+          <span class="tag on" onclick="pickTag('#seedTimeTags .tag',this,'seedTime','0')">0（不做种）</span>
+          <span class="tag"    onclick="pickTag('#seedTimeTags .tag',this,'seedTime','60')">60 分钟</span>
+          <span class="tag"    onclick="pickTag('#seedTimeTags .tag',this,'seedTime','1440')">24 小时</span>
+          <span class="tag"    onclick="pickTag('#seedTimeTags .tag',this,'seedTime','-1')">永久</span>
+        </div>
+
+        <div class="label">✨ BT 选项</div>
+        <div class="tags">
+          <span class="tag" data-opt="--bt-enable-lpd=true" onclick="toggleOpt(this)">📡 启用 LPD</span>
+          <span class="tag" data-opt="--enable-dht=true" onclick="toggleOpt(this)">🌐 启用 DHT</span>
+          <span class="tag" data-opt="--bt-require-crypto=true" onclick="toggleOpt(this)">🔒 强制加密</span>
+          <span class="tag" data-opt="--follow-torrent=true" onclick="toggleOpt(this)">📎 跟随 .torrent</span>
+          <span class="tag" data-opt="--seed-ratio=1.0" onclick="toggleOpt(this)">⚖️ 做种率 1.0</span>
+        </div>
+
+        <div class="label">🔗 Tracker 服务器 (--bt-tracker)</div>
+        <input id="f_tracker" placeholder="udp://tracker.opentrackr.org:1337/announce,..." oninput="buildCmd()">
+        <div class="hint">多个 tracker 以逗号分隔</div>
+      </div>
+    `,
+
+    metalink: `
+      <div class="card">
+        <div class="label">🔗 Metalink 文件路径 / URL</div>
+        <input id="f_metalink" placeholder="/path/to/file.meta4 或 https://..." oninput="buildCmd()">
+        <div class="hint">支持 .meta4 (Metalink 4) 与 .metalink (Metalink 3)</div>
+
+        <div class="label">📁 保存目录 (-d)</div>
+        <input id="f_dir" placeholder="留空=当前目录" oninput="buildCmd()">
+
+        <hr class="section-sep">
+        <div class="label">🌍 偏好语言 (--metalink-language)</div>
+        <div class="tags" id="mlLangTags">
+          <span class="tag on" onclick="pickTag('#mlLangTags .tag',this,'mlLang','')">不指定</span>
+          <span class="tag"    onclick="pickTag('#mlLangTags .tag',this,'mlLang','zh')">zh</span>
+          <span class="tag"    onclick="pickTag('#mlLangTags .tag',this,'mlLang','en')">en</span>
+          <span class="tag"    onclick="pickTag('#mlLangTags .tag',this,'mlLang','ja')">ja</span>
+        </div>
+
+        <div class="label">🖥️ 偏好操作系统 (--metalink-os)</div>
+        <div class="tags" id="mlOsTags">
+          <span class="tag on" onclick="pickTag('#mlOsTags .tag',this,'mlOs','')">不指定</span>
+          <span class="tag"    onclick="pickTag('#mlOsTags .tag',this,'mlOs','linux')">Linux</span>
+          <span class="tag"    onclick="pickTag('#mlOsTags .tag',this,'mlOs','win')">Windows</span>
+          <span class="tag"    onclick="pickTag('#mlOsTags .tag',this,'mlOs','mac')">macOS</span>
+        </div>
+
+        <div class="label">⚡ 偏好版本 (--metalink-version)</div>
+        <input id="f_mlver" placeholder="留空=不指定，例如 1.0" oninput="buildCmd()">
+
+        <div class="label">✨ Metalink 选项</div>
+        <div class="tags">
+          <span class="tag on" data-opt="--check-integrity=true" onclick="toggleOpt(this)">🔍 校验完整性</span>
+          <span class="tag"    data-opt="--metalink-preferred-protocol=https" onclick="toggleOpt(this)">🔒 优先 HTTPS</span>
+        </div>
+      </div>
+    `,
+
+    network: `
+      <div class="card">
+        <div class="label">🔗 下载 URL（测试网络设置）</div>
+        <input id="f_url" placeholder="https://example.com/file.zip" oninput="buildCmd()">
+
+        <hr class="section-sep">
+        <div class="label">🌍 HTTP 代理 (--all-proxy)</div>
+        <input id="f_proxy" placeholder="http://127.0.0.1:7890 或 socks5://127.0.0.1:1080" oninput="buildCmd()">
+        <div class="hint">支持 http:// / https:// / socks4:// / socks5://</div>
+
+        <div class="label">🔑 代理认证 (用户:密码)</div>
+        <div class="row2">
+          <div><input id="f_proxy_user" placeholder="用户名" oninput="buildCmd()"></div>
+          <div><input id="f_proxy_pass" placeholder="密码" type="password" oninput="buildCmd()"></div>
+        </div>
+
+        <div class="label">⬇️ 下载限速 (--max-download-limit)</div>
+        <div class="flex-row">
+          <input id="f_limitrate" placeholder="0=不限" style="flex:1;" oninput="buildCmd()">
+          <select id="f_rateunit" onchange="buildCmd()" style="width:80px;">
+            <option value="K">K/s</option>
+            <option value="M" selected>M/s</option>
+          </select>
+        </div>
+
+        <div class="label">🕶️ User-Agent (--user-agent)</div>
+        <div class="tags" id="uaTags">
+          <span class="tag on" onclick="pickUA(this,'')">默认</span>
+          <span class="tag"    onclick="pickUA(this,'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')">Chrome 120</span>
+          <span class="tag"    onclick="pickUA(this,'Wget/1.21.4')">Wget</span>
+          <span class="tag"    onclick="pickUA(this,'curl/8.4.0')">curl</span>
+        </div>
+        <input id="f_ua" placeholder="自定义 User-Agent 字符串" style="margin-top:8px;" oninput="buildCmd()">
+
+        <div class="label">🍪 Cookie 字符串 (--header=Cookie:...)</div>
+        <input id="f_cookie" placeholder="name=value; name2=value2" oninput="buildCmd()">
+
+        <div class="label">📝 自定义请求头 (--header)</div>
+        <input id="f_header" placeholder='Referer: https://example.com' oninput="buildCmd()">
+
+        <div class="label">⏱️ 超时时间 (--timeout，秒)</div>
+        <div class="tags" id="timeoutTags">
+          <span class="tag on" onclick="pickTag('#timeoutTags .tag',this,'timeout','60')">60s</span>
+          <span class="tag"    onclick="pickTag('#timeoutTags .tag',this,'timeout','120')">120s</span>
+          <span class="tag"    onclick="pickTag('#timeoutTags .tag',this,'timeout','300')">300s</span>
+        </div>
+      </div>
+    `,
+
+    rpc: `
+      <div class="card">
+        <div class="label">⚙️ 启动 aria2 RPC 守护进程</div>
+        <div class="hint" style="margin-bottom:10px;font-size:12px;color:#64748b;">RPC 模式让 aria2c 在后台运行，并通过 Web UI（如 AriaNg）或脚本远程控制。</div>
+
+        <div class="row2">
+          <div>
+            <div class="label">🔌 RPC 监听端口 (--rpc-listen-port)</div>
+            <input id="f_rpcport" placeholder="6800" value="6800" oninput="buildCmd()">
+          </div>
+          <div>
+            <div class="label">🔑 RPC Secret (--rpc-secret)</div>
+            <input id="f_rpcsecret" placeholder="yourSecretToken" oninput="buildCmd()">
+          </div>
+        </div>
+
+        <div class="label">📡 监听地址 (--rpc-listen-all)</div>
+        <div class="tags" id="rpcListenTags">
+          <span class="tag on" onclick="pickTag('#rpcListenTags .tag',this,'rpcListen','false')">仅 localhost</span>
+          <span class="tag"    onclick="pickTag('#rpcListenTags .tag',this,'rpcListen','true')">所有接口 (0.0.0.0)</span>
+        </div>
+
+        <div class="label">📁 默认下载目录 (-d)</div>
+        <input id="f_dir" placeholder="/home/user/Downloads" oninput="buildCmd()">
+
+        <hr class="section-sep">
+        <div class="label">💾 会话文件 (--save-session)</div>
+        <input id="f_session" placeholder="/tmp/aria2.session" oninput="buildCmd()">
+        <div class="hint">记录未完成任务，重启后可用 --input-file 恢复</div>
+
+        <div class="label">🕐 会话保存间隔 (--save-session-interval，秒)</div>
+        <div class="tags" id="sessionIntTags">
+          <span class="tag on" onclick="pickTag('#sessionIntTags .tag',this,'sessionInt','60')">60s</span>
+          <span class="tag"    onclick="pickTag('#sessionIntTags .tag',this,'sessionInt','30')">30s</span>
+          <span class="tag"    onclick="pickTag('#sessionIntTags .tag',this,'sessionInt','0')">不自动保存</span>
+        </div>
+
+        <div class="label">✨ RPC 选项</div>
+        <div class="tags">
+          <span class="tag on" data-opt="--enable-rpc=true"           onclick="toggleOpt(this)">✅ 启用 RPC</span>
+          <span class="tag"    data-opt="--rpc-allow-origin-all=true"  onclick="toggleOpt(this)">🌐 允许跨域</span>
+          <span class="tag"    data-opt="--daemon=true"                onclick="toggleOpt(this)">🔧 守护进程</span>
+          <span class="tag"    data-opt="--enable-dht=true"            onclick="toggleOpt(this)">🌐 启用 DHT</span>
+          <span class="tag"    data-opt="--bt-enable-lpd=true"         onclick="toggleOpt(this)">📡 启用 LPD</span>
+          <span class="tag"    data-opt="--follow-torrent=true"        onclick="toggleOpt(this)">📎 跟随 Torrent</span>
+        </div>
+      </div>
+    `,
+  };
+
+  // ---------- 辅助 ----------
+  window.g   = id => document.getElementById(id);
+  window.val = id => { const e = g(id); return e ? e.value.trim() : ''; };
+
+  window.syncSlider = function(rangeId, valId) {
+    const r = g(rangeId), v = g(valId);
+    if (r && v) v.textContent = r.value;
+  };
+
+  window.pickUA = function(el, ua) {
+    document.querySelectorAll('#uaTags .tag').forEach(t => t.classList.remove('on'));
+    el.classList.add('on');
+    const inp = g('f_ua');
+    if (inp) { inp.value = ua; }
+    buildCmd();
+  };
+
+  window.pickTag = function(selector, el, stateKey, value) {
+    document.querySelectorAll(selector).forEach(t => t.classList.remove('on'));
+    el.classList.add('on');
+    modeState[stateKey] = value;
+    buildCmd();
+  };
+
+  window.toggleOpt = function(el) {
+    el.classList.toggle('on');
+    buildCmd();
+  };
+
+  function getGlobalFlags() {
+    const flags = [];
+    document.querySelectorAll('#globalFlags .tag.on').forEach(t => {
+      if (t.dataset.flag) flags.push(t.dataset.flag);
+    });
+    return flags;
+  }
+
+  function getModeOpts() {
+    const opts = [];
+    document.querySelectorAll('#dynamicArea .tag.on[data-opt]').forEach(t => {
+      if (t.dataset.opt) opts.push(t.dataset.opt);
+    });
+    return opts;
+  }
+
+  // ---------- 命令构建核心 ----------
+  window.buildCmd = function() {
+    const m = state.mode;
+    const globalFlags = getGlobalFlags();
+    let parts = [];
+
+    if (m === 'http') {
+      const url   = val('f_url') || 'https://example.com/file.zip';
+      const dir   = val('f_dir');
+      const out   = val('f_out');
+      const conn  = g('f_conn') ? g('f_conn').value : '4';
+      const retry = modeState.retry ?? '5';
+      const opts  = getModeOpts();
+
+      if (dir)  parts.push(`-d "${dir}"`);
+      if (out)  parts.push(`-o "${out}"`);
+      parts.push(`-x ${conn}`, `-s ${conn}`);
+      parts.push(`--max-tries=${retry}`);
+      parts.push(...opts);
+      parts.push(...globalFlags);
+      parts.push(`"${url}"`);
+
+    } else if (m === 'multi') {
+      const inputFile = val('f_input');
+      const dir   = val('f_dir');
+      const jobs  = g('f_jobs')  ? g('f_jobs').value  : '3';
+      const conn  = g('f_conn')  ? g('f_conn').value  : '4';
+      const opts  = getModeOpts();
+
+      if (dir) parts.push(`-d "${dir}"`);
+      parts.push(`-j ${jobs}`, `-x ${conn}`);
+      parts.push(...opts);
+      parts.push(...globalFlags);
+
+      if (inputFile) {
+        parts.push(`-i "${inputFile}"`);
+      } else {
+        const urlsRaw = val('f_urls');
+        const urls = urlsRaw ? urlsRaw.split('\n').map(u => u.trim()).filter(Boolean) : ['https://example.com/file1.zip'];
+        parts.push(...urls.map(u => `"${u}"`));
+      }
+
+    } else if (m === 'torrent') {
+      const torrent   = val('f_torrent') || 'magnet:?xt=urn:btih:...';
+      const dir       = val('f_dir');
+      const uplimit   = val('f_uplimit');
+      const upunit    = val('f_upunit') || 'M';
+      const downlimit = val('f_downlimit');
+      const downunit  = val('f_downunit') || 'M';
+      const seedTime  = modeState.seedTime ?? '0';
+      const tracker   = val('f_tracker');
+      const opts      = getModeOpts();
+
+      if (dir)       parts.push(`-d "${dir}"`);
+      if (uplimit)   parts.push(`--max-upload-limit=${uplimit}${upunit}`);
+      if (downlimit) parts.push(`--max-download-limit=${downlimit}${downunit}`);
+      parts.push(`--seed-time=${seedTime}`);
+      if (tracker)   parts.push(`--bt-tracker="${tracker}"`);
+      parts.push(...opts);
+      parts.push(...globalFlags);
+
+      if (torrent.startsWith('magnet:')) {
+        parts.push(`"${torrent}"`);
+      } else {
+        parts.push(`--torrent-file="${torrent}"`);
+      }
+
+    } else if (m === 'metalink') {
+      const ml    = val('f_metalink') || 'file.meta4';
+      const dir   = val('f_dir');
+      const lang  = modeState.mlLang ?? '';
+      const os    = modeState.mlOs   ?? '';
+      const ver   = val('f_mlver');
+      const opts  = getModeOpts();
+
+      if (dir)  parts.push(`-d "${dir}"`);
+      if (lang) parts.push(`--metalink-language=${lang}`);
+      if (os)   parts.push(`--metalink-os=${os}`);
+      if (ver)  parts.push(`--metalink-version=${ver}`);
+      parts.push(...opts);
+      parts.push(...globalFlags);
+
+      if (ml.startsWith('http')) {
+        parts.push(`"${ml}"`);
+      } else {
+        parts.push(`--metalink-file="${ml}"`);
+      }
+
+    } else if (m === 'network') {
+      const url       = val('f_url') || 'https://example.com/file.zip';
+      const proxy     = val('f_proxy');
+      const proxyUser = val('f_proxy_user');
+      const proxyPass = val('f_proxy_pass');
+      const limit     = val('f_limitrate');
+      const limitUnit = val('f_rateunit') || 'M';
+      const ua        = val('f_ua');
+      const cookie    = val('f_cookie');
+      const header    = val('f_header');
+      const timeout   = modeState.timeout ?? '60';
+
+      if (proxy)     parts.push(`--all-proxy="${proxy}"`);
+      if (proxyUser) parts.push(`--all-proxy-user="${proxyUser}"`);
+      if (proxyPass) parts.push(`--all-proxy-passwd="${proxyPass}"`);
+      if (limit)     parts.push(`--max-download-limit=${limit}${limitUnit}`);
+      if (ua)        parts.push(`--user-agent="${ua}"`);
+      if (cookie)    parts.push(`--header="Cookie: ${cookie}"`);
+      if (header)    parts.push(`--header="${header}"`);
+      parts.push(`--timeout=${timeout}`);
+      parts.push(...globalFlags);
+      parts.push(`"${url}"`);
+
+    } else if (m === 'rpc') {
+      const port       = val('f_rpcport') || '6800';
+      const secret     = val('f_rpcsecret');
+      const dir        = val('f_dir');
+      const session    = val('f_session');
+      const sesInt     = modeState.sessionInt ?? '60';
+      const listenAll  = modeState.rpcListen  ?? 'false';
+      const opts       = getModeOpts();
+
+      parts.push(`--rpc-listen-port=${port}`);
+      if (secret)  parts.push(`--rpc-secret=${secret}`);
+      parts.push(`--rpc-listen-all=${listenAll}`);
+      if (dir)     parts.push(`-d "${dir}"`);
+      if (session) {
+        parts.push(`--save-session="${session}"`);
+        parts.push(`--save-session-interval=${sesInt}`);
+        parts.push(`--input-file="${session}"`);
+      }
+      parts.push(...opts);
+      parts.push(...globalFlags);
+    }
+
+    const cmd = 'aria2c ' + parts.join(' ');
+    cmdOut.textContent = cmd.replace(/\s+/g, ' ').trim();
+  };
+
+  // ---------- 切换模式 ----------
+  window.setMode = function(modeId) {
+    state.mode = modeId;
+    modeState  = { retry: '5', seedTime: '0', mlLang: '', mlOs: '', timeout: '60', rpcListen: 'false', sessionInt: '60' };
+    renderModes();
+    dynamicArea.innerHTML = TEMPLATES[modeId] || '';
+    buildCmd();
+  };
+
+  // ---------- 全局标志点击 ----------
+  function initGlobalFlags() {
+    document.querySelectorAll('#globalFlags .tag').forEach(t => {
+      t.addEventListener('click', function() {
+        this.classList.toggle('on');
+        buildCmd();
+      });
+    });
+  }
+
+  // ---------- 复制命令 ----------
+  window.copyCmd = async function() {
+    const txt = cmdOut.textContent;
+    try {
+      await navigator.clipboard.writeText(txt);
+      const orig = cmdOut.style.background;
+      cmdOut.style.background = '#1a3052';
+      cmdOut.style.transition = 'background 0.2s';
+      setTimeout(() => { cmdOut.style.background = orig; }, 600);
+    } catch {
+      alert('❌ 复制失败，请手动复制');
+    }
+  };
+
+  window.resetAll = function() {
+    document.querySelectorAll('#globalFlags .tag').forEach(t => t.classList.remove('on'));
+    setMode('http');
+  };
+
+  // ---------- 初始化 ----------
+  function init() {
+    renderModes();
+    setMode('http');
+    initGlobalFlags();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
