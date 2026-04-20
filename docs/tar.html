@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tar 命令生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-zinc-50 p-4 md:p-10 font-sans">
+
+<div id="app" class="max-w-6xl mx-auto">
+    <header class="mb-8 flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-black text-amber-600 tracking-tighter">TAR COMMANDER</h1>
+            <p class="text-zinc-500 text-sm">轻松生成 tar 归档/解压命令，无需记忆复杂参数。</p>
+        </div>
+        <div class="text-right text-xs text-zinc-400 font-mono">Vue3 + Tailwind CDN</div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- 左侧：基本配置 -->
+        <div class="space-y-6">
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-zinc-200">
+                <h2 class="font-bold text-zinc-800 mb-4 flex items-center">
+                    <span class="w-2 h-5 bg-amber-500 rounded mr-2"></span>基本操作
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-zinc-700 mb-2">操作模式</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-zinc-50">
+                                <input type="radio" v-model="form.mode" value="create" class="text-amber-500 mr-3">
+                                <span>创建归档</span>
+                            </label>
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-zinc-50">
+                                <input type="radio" v-model="form.mode" value="extract" class="text-amber-500 mr-3">
+                                <span>提取归档</span>
+                            </label>
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-zinc-50">
+                                <input type="radio" v-model="form.mode" value="list" class="text-amber-500 mr-3">
+                                <span>列出内容</span>
+                            </label>
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-zinc-50">
+                                <input type="radio" v-model="form.mode" value="append" class="text-amber-500 mr-3">
+                                <span>追加文件</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-zinc-700 mb-2">归档文件</label>
+                        <input v-model="form.archive" placeholder="例如: backup.tar.gz" class="w-full border p-3 rounded-lg text-sm bg-zinc-50 font-mono">
+                        <p class="text-xs text-zinc-500 mt-1">输入 tar 归档文件的路径（可包含压缩扩展名如 .tar.gz）</p>
+                    </div>
+
+                    <div v-if="form.mode === 'create' || form.mode === 'append'">
+                        <label class="block text-sm font-medium text-zinc-700 mb-2">源文件/目录</label>
+                        <input v-model="form.source" placeholder="例如: ./documents 或 file1.txt file2.txt" class="w-full border p-3 rounded-lg text-sm bg-zinc-50 font-mono">
+                        <p class="text-xs text-zinc-500 mt-1">多个文件用空格分隔，目录会自动递归包含</p>
+                    </div>
+
+                    <div v-if="form.mode === 'extract'">
+                        <label class="block text-sm font-medium text-zinc-700 mb-2">提取目录</label>
+                        <input v-model="form.extractDir" placeholder="例如: ./output (默认当前目录)" class="w-full border p-3 rounded-lg text-sm bg-zinc-50">
+                        <p class="text-xs text-zinc-500 mt-1">留空则提取到当前目录</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-zinc-200">
+                <h2 class="font-bold text-zinc-800 mb-4 flex items-center">
+                    <span class="w-2 h-5 bg-blue-500 rounded mr-2"></span>压缩选项
+                </h2>
+                <div class="space-y-3">
+                    <label class="flex items-center text-sm cursor-pointer">
+                        <input type="radio" v-model="form.compression" value="none" class="text-blue-500 mr-2">
+                        无压缩（.tar）
+                    </label>
+                    <label class="flex items-center text-sm cursor-pointer">
+                        <input type="radio" v-model="form.compression" value="gzip" class="text-blue-500 mr-2">
+                        gzip 压缩（.tar.gz 或 .tgz）
+                    </label>
+                    <label class="flex items-center text-sm cursor-pointer">
+                        <input type="radio" v-model="form.compression" value="bzip2" class="text-blue-500 mr-2">
+                        bzip2 压缩（.tar.bz2 或 .tbz2）
+                    </label>
+                    <label class="flex items-center text-sm cursor-pointer">
+                        <input type="radio" v-model="form.compression" value="xz" class="text-blue-500 mr-2">
+                        xz 压缩（.tar.xz 或 .txz）
+                    </label>
+                    <label class="flex items-center text-sm cursor-pointer">
+                        <input type="radio" v-model="form.compression" value="auto" class="text-blue-500 mr-2">
+                        自动检测（根据扩展名）
+                    </label>
+                </div>
+            </section>
+        </div>
+
+        <!-- 中间：高级选项 -->
+        <div class="lg:col-span-1">
+            <section class="bg-white p-5 rounded-2xl shadow-sm border border-zinc-200 h-full">
+                <h2 class="font-bold text-zinc-800 mb-4 flex items-center">
+                    <span class="w-2 h-5 bg-green-500 rounded mr-2"></span>高级选项
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">常用标志</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center text-sm cursor-pointer">
+                                <input type="checkbox" v-model="form.verbose" class="rounded text-green-600 mr-2">
+                                详细输出（-v）
+                            </label>
+                            <label class="flex items-center text-sm cursor-pointer">
+                                <input type="checkbox" v-model="form.preserve" class="rounded text-green-600 mr-2">
+                                保留权限（-p）
+                            </label>
+                            <label class="flex items-center text-sm cursor-pointer">
+                                <input type="checkbox" v-model="form.absolute" class="rounded text-green-600 mr-2">
+                                允许绝对路径（-P）
+                            </label>
+                            <label v-if="form.mode === 'create'" class="flex items-center text-sm cursor-pointer">
+                                <input type="checkbox" v-model="form.excludeHidden" class="rounded text-green-600 mr-2">
+                                排除隐藏文件（--exclude=".*"）
+                            </label>
+                        </div>
+                    </div>
+
+                    <div v-if="form.mode === 'create'">
+                        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">排除模式</label>
+                        <textarea v-model="form.excludePatterns" rows="3" placeholder="每行一个排除模式&#10;例如: *.log&#10;temp/" class="w-full border p-2 rounded text-sm bg-zinc-50 font-mono text-xs"></textarea>
+                        <p class="text-xs text-zinc-500 mt-1">每行一个模式，支持通配符</p>
+                    </div>
+
+                    <div v-if="form.mode === 'extract'">
+                        <label class="block text-xs font-bold text-zinc-500 uppercase mb-2">提取选项</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center text-sm cursor-pointer">
+                                <input type="checkbox" v-model="form.keepOld" class="rounded text-green-600 mr-2">
+                                不覆盖现有文件（-k）
+                            </label>
+                            <label class="flex items-center text-sm cursor-pointer">
+                                <input type="checkbox" v-model="form.stripComponents" class="rounded text-green-600 mr-2">
+                                剥离路径组件（--strip-components=N）
+                            </label>
+                            <div v-if="form.stripComponents" class="ml-6">
+                                <input v-model="form.stripCount" type="number" min="1" max="10" class="w-16 border p-1 rounded text-sm">
+                                <span class="text-xs text-zinc-500 ml-2">组件数量</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 右侧：命令输出 -->
+        <div class="lg:col-span-1">
+            <div class="bg-zinc-900 rounded-2xl p-6 shadow-xl sticky top-6 h-full flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-amber-400 font-bold text-xs tracking-widest uppercase">生成的命令</span>
+                    <button @click="copyAll" class="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1 rounded-md transition-colors">
+                        {{ copyStatus ? '已复制!' : '复制全部' }}
+                    </button>
+                </div>
+
+                <div class="flex-1 font-mono text-sm overflow-y-auto text-zinc-300 space-y-1 custom-scrollbar">
+                    <div v-for="(cmd, i) in commandList" :key="i" class="py-1 border-b border-white/5 last:border-0">
+                        <span class="text-zinc-600 mr-2">$</span>{{ cmd }}
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                        <p class="text-[10px] text-amber-400 leading-relaxed italic text-center">
+                            提示：复制命令后可直接在终端粘贴执行。请确保在当前目录有相应权限。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, reactive } = Vue;
+
+    createApp({
+        setup() {
+            const copyStatus = ref(false);
+            const form = reactive({
+                mode: 'create',
+                archive: 'backup.tar.gz',
+                source: './documents',
+                extractDir: '',
+                compression: 'gzip',
+                verbose: true,
+                preserve: false,
+                absolute: false,
+                excludeHidden: false,
+                excludePatterns: '',
+                keepOld: false,
+                stripComponents: false,
+                stripCount: 1
+            });
+
+            const commandList = computed(() => {
+                let cmds = [];
+                let cmd = 'tar';
+
+                // 根据模式添加主选项
+                switch(form.mode) {
+                    case 'create':
+                        cmd += ' -c';
+                        break;
+                    case 'extract':
+                        cmd += ' -x';
+                        break;
+                    case 'list':
+                        cmd += ' -t';
+                        break;
+                    case 'append':
+                        cmd += ' -r';
+                        break;
+                }
+
+                // 压缩选项
+                if (form.compression !== 'none') {
+                    if (form.compression === 'gzip') {
+                        cmd += 'z';
+                    } else if (form.compression === 'bzip2') {
+                        cmd += 'j';
+                    } else if (form.compression === 'xz') {
+                        cmd += 'J';
+                    } else if (form.compression === 'auto') {
+                        // 自动检测，不添加标志
+                    }
+                }
+
+                // 常用标志
+                if (form.verbose) cmd += 'v';
+                if (form.preserve) cmd += 'p';
+                if (form.absolute) cmd += 'P';
+
+                // 归档文件
+                if (form.archive) {
+                    // 如果压缩模式为auto，不添加f标志，让tar自动检测
+                    if (form.compression !== 'auto') {
+                        cmd += 'f';
+                    }
+                    cmd += ` ${form.archive}`;
+                }
+
+                // 源文件/目录（创建/追加模式）
+                if ((form.mode === 'create' || form.mode === 'append') && form.source) {
+                    cmd += ` ${form.source}`;
+                }
+
+                // 排除模式
+                if (form.mode === 'create' && form.excludePatterns) {
+                    const patterns = form.excludePatterns.trim().split('\n').filter(p => p.trim());
+                    patterns.forEach(pattern => {
+                        cmds.push(`tar ... --exclude="${pattern}" ...`); // 简化显示
+                    });
+                }
+
+                // 提取目录
+                if (form.mode === 'extract' && form.extractDir) {
+                    cmd += ` -C ${form.extractDir}`;
+                }
+
+                // 提取选项
+                if (form.mode === 'extract') {
+                    if (form.keepOld) cmd += ' -k';
+                    if (form.stripComponents) {
+                        cmd += ` --strip-components=${form.stripCount}`;
+                    }
+                }
+
+                // 排除隐藏文件
+                if (form.mode === 'create' && form.excludeHidden) {
+                    cmd += ' --exclude=".*"';
+                }
+
+                cmds.unshift(cmd);
+                return cmds;
+            });
+
+            const copyAll = async () => {
+                const text = commandList.value.join('\n');
+                await navigator.clipboard.writeText(text);
+                copyStatus.value = true;
+                setTimeout(() => copyStatus.value = false, 2000);
+            };
+
+            return { form, commandList, copyAll, copyStatus };
+        }
+    }).mount('#app');
+</script>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+</style>
+</body>
+</html>
